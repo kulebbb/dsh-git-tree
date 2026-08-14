@@ -51,6 +51,7 @@ test("collectGraph returns the full fixture graph", async () => {
     assert.equal(payload.repo.root, run(dir, ["rev-parse", "--show-toplevel"]));
     // newest commit first (date-order, latest = G on fix)
     assert.equal(payload.commits[0].subject, "G");
+    assert.equal(payload.repo.truncated, false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -63,6 +64,18 @@ test("collectGraph truncates with a small limit", async () => {
     const payload = await collectGraph(dir, 3);
     assert.equal(payload.commits.length, 3);
     assert.equal(payload.repo.truncated, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collectGraph is not truncated when the repo has exactly n commits", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dsh-git-tree-repo-"));
+  try {
+    makeRepo(dir);
+    const payload = await collectGraph(dir, 7);
+    assert.equal(payload.commits.length, 7);
+    assert.equal(payload.repo.truncated, false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
