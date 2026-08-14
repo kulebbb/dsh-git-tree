@@ -60,3 +60,21 @@ test("layoutGraph: three-branch fan-in merge", () => {
   assert.deepEqual(rows.map((r) => r.col), [0, 1, 0, 1]);
   assert.equal(edges.length, 4);
 });
+
+test("layoutGraph: empty and single commit", () => {
+  const empty = layoutGraph([]);
+  assert.deepEqual(empty.rows, []);
+  assert.deepEqual(empty.edges, []);
+  const one = layoutGraph([{ hash: "a", parents: [], subject: "a", author: "", date: "", refs: [] }]);
+  assert.deepEqual(one.rows.map((r) => r.col), [0]);
+  assert.equal(one.edges.length, 0);
+});
+
+test("layoutGraph: duplicate parents are deduplicated", () => {
+  const { edges } = layoutGraph([
+    { hash: "m", parents: ["b", "b"], subject: "m", author: "", date: "", refs: [] },
+    { hash: "b", parents: [], subject: "b", author: "", date: "", refs: [] }
+  ]);
+  assert.equal(edges.length, 1);
+  assert.deepEqual(edges[0], { from: "m", to: "b" });
+});
