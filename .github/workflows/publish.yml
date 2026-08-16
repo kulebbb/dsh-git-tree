@@ -22,7 +22,10 @@ jobs:
         run: |
           PKG=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
-          OUT=$(npm publish --access public 2>&1); RC=$?
+          set +e
+          OUT=$(npm publish --access public 2>&1)
+          RC=$?
+          set -e
           echo "$OUT"
           if [ $RC -ne 0 ]; then
             if echo "$OUT" | grep -q "cannot publish over the previously published versions"; then
