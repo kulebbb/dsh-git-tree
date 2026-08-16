@@ -34,6 +34,74 @@ pnpm add @kulebbb/dsh-git-tree
 
 > 本插件无运行时第三方依赖（`@deepseek-ai/*` 运行库由 DSH 安装自带），安装后即可使用。
 
+## 🤖 Agent 一键安装
+
+把下面**任一段**提示词（中文或英文）复制发给你的 AI 助手（DeepSeek / Claude / Cursor 等），它会自动完成安装。如需同时安装 [dsh-vision](https://github.com/kulebbb/dsh-vision)，把两个插件的提示词一起发给助手，它会依次完成。
+
+**中文版**
+
+```text
+你是一个安装助手。请帮我把 DSH（DeepSeek Harness）插件 @kulebbb/dsh-git-tree 安装到我的 web profile 中。
+
+【背景】
+@kulebbb/dsh-git-tree 是 DSH Web GUI 插件：侧边栏底部的「Git 树」按钮，点击后全屏展示当前工作区的 git 提交/分支图。无第三方运行时依赖。
+
+【前置检查】
+1. 运行 dsh --version 确认 DSH 已安装；若命令不存在，告诉我"未检测到 dsh，需要先安装 DSH"并停止。
+2. 确认目录 ~/.dsh/profiles/web（或 $DSH_HOME/profiles/web）存在；若不存在，先运行 dsh web 完成首次初始化。
+
+【安装步骤】
+1. cd ~/.dsh/profiles/web
+2. 运行：pnpm add @kulebbb/dsh-git-tree
+3. 打开（或创建）cordis.patch.yml，在顶层 insert 列表【末尾追加】以下条目。注意：片段中的 - insert: 是文件的顶层列表项，写入时必须顶格（去掉每行前导空格），片段内部缩进保持不变；不要覆盖或改动其他已有条目；若已存在 id 为 git-tree 的条目，只更新它的 name：
+   - insert:
+       - id: git-tree
+         name: '@kulebbb/dsh-git-tree'
+4. 重启 dsh web（若正在运行）。
+
+【验证】
+- 运行 dsh --profile web --dump-config，确认输出包含 id: git-tree 与 name: '@kulebbb/dsh-git-tree'。
+- 重启后：侧边栏底部出现「Git 树」按钮，点击弹出当前工作区的提交/分支图。
+
+【异常处理】
+- 任何命令报错，把完整错误信息原样转达给我，不要擅自修改配置或改用其他方案。
+- 若 pnpm 报 peer 依赖相关错误（如 ERR_PNPM_FETCH_404），可尝试：pnpm add @kulebbb/dsh-git-tree --config.auto-install-peers=false，然后重试；正常情况下不需要。
+- 若你没有执行命令的能力，请把上述命令与 yaml 片段整理成一份手动操作清单交给我。
+- 需要我确认的信息先问我，再继续。
+```
+
+**English**
+
+```text
+You are an installation assistant. Install the DSH (DeepSeek Harness) plugin @kulebbb/dsh-git-tree into my web profile.
+
+[Context]
+@kulebbb/dsh-git-tree is a DSH Web GUI plugin: a "Git tree" button at the bottom of the sidebar that opens a fullscreen commit/branch graph of the current workspace. It has no third-party runtime dependencies.
+
+[Preflight]
+1. Run dsh --version to confirm DSH is installed; if the command is missing, tell me "dsh is not installed" and stop.
+2. Confirm the directory ~/.dsh/profiles/web (or $DSH_HOME/profiles/web) exists; if not, run dsh web once to initialize it.
+
+[Install]
+1. cd ~/.dsh/profiles/web
+2. Run: pnpm add @kulebbb/dsh-git-tree
+3. Open (or create) cordis.patch.yml and APPEND the following entry to the top-level insert list. Note: - insert: is a top-level list item of the file — write it flush-left (strip the leading whitespace from every line) while keeping the inner indentation as-is; do not overwrite or modify other entries. If an entry with id git-tree already exists, update only its name:
+   - insert:
+       - id: git-tree
+         name: '@kulebbb/dsh-git-tree'
+4. Restart dsh web (if it is running).
+
+[Verify]
+- Run dsh --profile web --dump-config and confirm the output contains id: git-tree and name: '@kulebbb/dsh-git-tree'.
+- After restart: a "Git tree" button appears at the bottom of the sidebar; clicking it opens the commit/branch graph of the current workspace.
+
+[On errors]
+- If any command fails, relay the full error to me verbatim; do not improvise config changes or fall back to other approaches.
+- If pnpm reports peer-dependency errors (e.g. ERR_PNPM_FETCH_404), retry with: pnpm add @kulebbb/dsh-git-tree --config.auto-install-peers=false (normally not needed).
+- If you cannot run commands, hand me a step-by-step manual checklist instead.
+- Ask me before continuing whenever you need information I have not provided.
+```
+
 ## 接口
 
 `GET /git-tree/graph?cwd=<绝对目录>&n=<1..2000>` → `{ok, repo, commits, refs}`；错误负载 `{ok:false, error:{code, message}}`，code ∈ `invalid-cwd | not-a-git-repo | git-unavailable | git-timeout | git-error | internal`。`not-a-git-repo` 返回 `200` + `ok:false`（软错误，UI 据此显示提示）；`invalid-cwd` 返回 `400`；其余错误返回 `500`。
