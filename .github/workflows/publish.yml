@@ -18,14 +18,18 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Publish to npm (skip if version already published)
+      - name: Publish to npm (idempotent)
         run: |
           PKG=$(node -p "require('./package.json').name")
           VER=$(node -p "require('./package.json').version")
-          if npm view "$PKG@$VER" version >/dev/null 2>&1; then
-            echo "::notice::$PKG@$VER already published, skipping"
-          else
-            npm publish --access public
+          OUT=$(npm publish --access public 2>&1); RC=$?
+          echo "$OUT"
+          if [ $RC -ne 0 ]; then
+            if echo "$OUT" | grep -q "cannot publish over the previously published versions"; then
+              echo "::notice::$PKG@$VER already published, skipping"
+              exit 0
+            fi
+            exit $RC
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
