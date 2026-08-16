@@ -21,7 +21,7 @@ const exports_ = loaded.factory((spec) => {
   if (spec === "react") return fakeReact;
   throw new Error(`unexpected require: ${spec}`);
 });
-const { layoutGraph } = exports_;
+const { layoutGraph, buildEdgePaths, branchColors, pickFreeLane } = exports_;
 
 test("layoutGraph: linear history stays on one lane", () => {
   const commits = [
@@ -76,5 +76,86 @@ test("layoutGraph: duplicate parents are deduplicated", () => {
     { hash: "b", parents: [], subject: "b", author: "", date: "", refs: [] }
   ]);
   assert.equal(edges.length, 1);
-  assert.deepEqual(edges[0], { from: "m", to: "b" });
+  assert.deepEqual(edges[0], { from: "m", to: "b", color: "var(--dsw-alias-label-tertiary)" });
+});
+
+test("layoutGraph: branch tips propagate their color down ancestry", () => {
+  const commits = [
+    { hash: "M", parents: ["C", "E"], subject: "merge", author: "", date: "", refs: ["HEAD -> main"] },
+    { hash: "E", parents: ["D"], subject: "e", author: "", date: "", refs: ["feat"] },
+    { hash: "D", parents: ["B"], subject: "d", author: "", date: "", refs: [] },
+    { hash: "C", parents: ["B"], subject: "c", author: "", date: "", refs: [] },
+    { hash: "B", parents: ["A"], subject: "b", author: "", date: "", refs: [] },
+    { hash: "A", parents: [], subject: "a", author: "", date: "", refs: [] }
+  ];
+  const { rows, edges } = layoutGraph(commits);
+  const rowColor = (h) => rows.find((r) => r.commit.hash === h).color;
+  const edgeColor = (from, to) => edges.find((e) => e.from === from && e.to === to).color;
+  const NEUTRAL = "var(--dsw-alias-label-tertiary)";
+  assert.notEqual(rowColor("M"), NEUTRAL);
+  assert.notEqual(rowColor("E"), NEUTRAL);
+  assert.notEqual(rowColor("M"), rowColor("E"));
+  // main line M -> C keeps one color; feat line E -> D keeps its own
+  assert.equal(rowColor("M"), rowColor("C"));
+  assert.equal(rowColor("E"), rowColor("D"));
+  // merge curve M -> E carries feat's color (parent thread bending up)
+  assert.equal(edgeColor("M", "E"), rowColor("E"));
+  // merge-base curve C -> B carries main's color (child thread bending down)
+  assert.equal(edgeColor("C", "B"), rowColor("C"));
+  // straight feat continuation D -> B carries feat's color
+  assert.equal(edgeColor("D", "B"), rowColor("D"));
+  for (const e of edges) assert.equal(typeof e.color, "string");
+});
+
+test("branchColors: every reachable commit gets a color, tips distinct", () => {
+  const commits = [
+    { hash: "M", parents: ["C", "E"], subject: "merge", author: "", date: "", refs: ["HEAD -> main"] },
+    { hash: "E", parents: ["D"], subject: "e", author: "", date: "", refs: ["feat"] },
+    { hash: "D", parents: ["B"], subject: "d", author: "", date: "", refs: [] },
+    { hash: "C", parents: ["B"], subject: "c", author: "", date: "", refs: [] },
+    { hash: "B", parents: ["A"], subject: "b", author: "", date: "", refs: [] },
+    { hash: "A", parents: [], subject: "a", author: "", date: "", refs: [] }
+  ];
+  const colors = branchColors(commits);
+  assert.notEqual(colors.get("M"), colors.get("E"));
+  for (const c of commits) assert.ok(colors.has(c.hash), `missing color for ${c.hash}`);
+});
+
+test("buildEdgePaths: linear history merges into one vertical path", () => {
+  const commits = [
+    { hash: "c3", parents: ["c2"], subject: "3", author: "", date: "", refs: ["HEAD -> main"] },
+    { hash: "c2", parents: ["c1"], subject: "2", author: "", date: "", refs: [] },
+    { hash: "c1", parents: [], subject: "1", author: "", date: "", refs: [] }
+  ];
+  const paths = buildEdgePaths(layoutGraph(commits));
+  assert.equal(paths.length, 1);
+  assert.ok(paths[0].d.startsWith("M "));
+  assert.ok(!paths[0].d.includes(" C "));
+});
+
+test("buildEdgePaths: cross-lane edges become orthogonal rounded corners", () => {
+  const commits = [
+    { hash: "M", parents: ["C", "E"], subject: "merge", author: "", date: "", refs: ["HEAD -> main"] },
+    { hash: "E", parents: ["D"], subject: "e", author: "", date: "", refs: ["feat"] },
+    { hash: "D", parents: ["B"], subject: "d", author: "", date: "", refs: [] },
+    { hash: "C", parents: ["B"], subject: "c", author: "", date: "", refs: [] },
+    { hash: "B", parents: ["A"], subject: "b", author: "", date: "", refs: [] },
+    { hash: "A", parents: [], subject: "a", author: "", date: "", refs: [] }
+  ];
+  const paths = buildEdgePaths(layoutGraph(commits));
+  const orthogonal = paths.filter((p) => p.d.includes(" Q "));
+  assert.equal(orthogonal.length, 2, "M->E and C->B cross lanes");
+  for (const p of orthogonal) {
+    assert.equal((p.d.match(/ Q /g) || []).length, 2, "two rounded corners per route");
+  }
+  assert.ok(!paths.some((p) => p.d.includes(" C ")), "no cubic beziers remain");
+});
+
+test("pickFreeLane: new branches extend only to the right", () => {
+  assert.equal(pickFreeLane([null, null, null], 0), 1);
+  assert.equal(pickFreeLane(["x", null, "x", null], 0), 1);
+  assert.equal(pickFreeLane(["x", null, "x", null], 2), 3);
+  assert.equal(pickFreeLane(["x", "x", null], 0), 2);
+  assert.equal(pickFreeLane(["x", "x"], 0), -1);
+  assert.equal(pickFreeLane([null, null], 1), -1);
 });
