@@ -1,6 +1,6 @@
 {
   "name": "@kulebbb/dsh-git-tree",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Visual git commit/branch graph panel for the DSH Web UI",
   "type": "module",
   "main": "lib/index.js",
