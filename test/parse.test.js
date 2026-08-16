@@ -14,8 +14,10 @@ test("parseLog splits fields, parents, and decorations", () => {
   assert.deepEqual(commits[0].parents, [H("b"), H("c")]);
   assert.deepEqual(commits[0].refs, ["HEAD -> main", "tag: v1.1"]);
   assert.equal(commits[0].subject, "feat: merge");
+  assert.equal(commits[0].shortHash, H("a").slice(0, 7));
   assert.equal(commits[0].date, "2026-08-01T10:00:00+08:00");
   assert.equal(commits[1].parents.length, 0);
+  assert.equal(commits[1].shortHash, H("b").slice(0, 7));
   assert.equal(commits[1].refs.length, 0);
 });
 

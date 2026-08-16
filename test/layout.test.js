@@ -21,7 +21,7 @@ const exports_ = loaded.factory((spec) => {
   if (spec === "react") return fakeReact;
   throw new Error(`unexpected require: ${spec}`);
 });
-const { layoutGraph, buildEdgePaths, branchColors, pickFreeLane } = exports_;
+const { layoutGraph, buildEdgePaths, computeLabelXs, branchColors, pickFreeLane, hashSuffixOf, rowTextOf } = exports_;
 
 test("layoutGraph: linear history stays on one lane", () => {
   const commits = [
@@ -158,4 +158,59 @@ test("pickFreeLane: new branches extend only to the right", () => {
   assert.equal(pickFreeLane(["x", "x", null], 0), 2);
   assert.equal(pickFreeLane(["x", "x"], 0), -1);
   assert.equal(pickFreeLane([null, null], 1), -1);
+});
+
+test("computeLabelXs: linear history keeps labels anchored to their dot", () => {
+  const commits = [
+    { hash: "c3", parents: ["c2"], subject: "3", author: "", date: "", refs: ["HEAD -> main"] },
+    { hash: "c2", parents: ["c1"], subject: "2", author: "", date: "", refs: [] },
+    { hash: "c1", parents: [], subject: "1", author: "", date: "", refs: [] }
+  ];
+  const graph = layoutGraph(commits);
+  const xs = computeLabelXs(graph, buildEdgePaths(graph));
+  // All rows sit on lane 0; the single vertical run at x=18 lies left of the
+  // dot-anchored start (18 + 12), so no row needs to move.
+  assert.deepEqual(xs, [30, 30, 30]);
+});
+
+test("computeLabelXs: labels dodge crossing edge lines without left-aligning", () => {
+  const commits = [
+    { hash: "M", parents: ["C", "E"], subject: "merge", author: "", date: "", refs: ["HEAD -> main"] },
+    { hash: "E", parents: ["D"], subject: "e", author: "", date: "", refs: ["feat"] },
+    { hash: "D", parents: ["B"], subject: "d", author: "", date: "", refs: [] },
+    { hash: "C", parents: ["B"], subject: "c", author: "", date: "", refs: [] },
+    { hash: "B", parents: ["A"], subject: "b", author: "", date: "", refs: [] },
+    { hash: "A", parents: [], subject: "a", author: "", date: "", refs: [] }
+  ];
+  const graph = layoutGraph(commits);
+  const xs = computeLabelXs(graph, buildEdgePaths(graph));
+  // Lane 1 (x=42) carries E->D->B through rows 1-4; lane-0 rows whose text
+  // would cross that line (rows 0 and 3) shift right, others keep their
+  // dot-anchored start (54 on lane 1, 30 on lane 0). Multiple distinct x
+  // values prove this is a stepped layout, not a global left-align.
+  assert.deepEqual(xs, [33, 54, 54, 52, 54, 54]);
+  assert.ok(new Set(xs).size > 1, "labels must not all share one x (no left-align)");
+  // Every label still starts at or to the right of its own dot anchor.
+  const anchor = (r) => 18 + Math.min(r.col, 9) * 24 + 12;
+  graph.rows.forEach((r, i) => assert.ok(xs[i] >= anchor(r), `row ${i} moved left of its dot`));
+});
+
+test("computeLabelXs: empty graph yields no xs", () => {
+  assert.deepEqual(computeLabelXs(layoutGraph([]), []), []);
+});
+
+test("hashSuffixOf: GitHub-style trailing short hash", () => {
+  const c = { hash: "a".repeat(40), shortHash: "aaaaaaa", parents: [], subject: "feat: merge", author: "", date: "", refs: ["HEAD -> main", "tag: v1.1"] };
+  assert.equal(hashSuffixOf(c), " (aaaaaaa)");
+  assert.equal(rowTextOf(c), "HEAD -> main v1.1 feat: merge (aaaaaaa)");
+});
+
+test("hashSuffixOf: falls back to the first 7 chars of the full hash", () => {
+  const c = { hash: "0123456789abcdef".repeat(3).slice(0, 40) };
+  assert.equal(hashSuffixOf(c), " (0123456)");
+});
+
+test("rowTextOf: empty refs and subject still carry the hash suffix", () => {
+  const c = { hash: "a".repeat(40), shortHash: "aaaaaaa", parents: [], subject: "", author: "", date: "", refs: [] };
+  assert.equal(rowTextOf(c), " (aaaaaaa)");
 });
