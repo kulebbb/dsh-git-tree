@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareVersions, isDevSpec, findProfileDir, readDependencySpec, deriveStatus, checkRegistryLatest } from "../lib/update.js";
+import { EventEmitter } from "node:events";
+import { compareVersions, isDevSpec, findProfileDir, readDependencySpec, deriveStatus, checkRegistryLatest, runPnpmUpdate } from "../lib/update.js";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -186,4 +187,71 @@ test("checkRegistryLatest: non-string version yields null latest without error",
   const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
   assert.equal(result.latest, null);
   assert.equal(result.checkError, null);
+});
+
+test("runPnpmUpdate: pnpm add with latest tag and CI env", async () => {
+  let captured;
+  const fakeSpawn = (cmd, args, opts) => {
+    captured = { cmd, args, opts };
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    queueMicrotask(() => child.emit("close", 0));
+    return child;
+  };
+  const result = await runPnpmUpdate("/p", { spawnImpl: fakeSpawn, env: {} });
+  assert.equal(result.ok, true);
+  assert.equal(captured.cmd, "pnpm");
+  assert.deepEqual(captured.args, ["add", "@kulebbb/dsh-git-tree@latest"]);
+  assert.equal(captured.opts.cwd, "/p");
+  assert.equal(captured.opts.env.CI, "1");
+  assert.equal(captured.opts.stdio[0], "ignore");
+});
+
+test("runPnpmUpdate: resolves error with output on non-zero exit", async () => {
+  const fakeSpawn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    queueMicrotask(() => {
+      child.stderr.emit("data", "ERR_PNPM_FETCH_404 Package not found");
+      child.emit("close", 1);
+    });
+    return child;
+  };
+  const result = await runPnpmUpdate("/p", { spawnImpl: fakeSpawn, env: {} });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "pnpm-error");
+  assert.match(result.message, /code 1/);
+  assert.match(result.output, /ERR_PNPM_FETCH_404/);
+});
+
+test("runPnpmUpdate: spawn failure maps to spawn-error", async () => {
+  const fakeSpawn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    queueMicrotask(() => child.emit("error", new Error("ENOENT")));
+    return child;
+  };
+  const result = await runPnpmUpdate("/p", { spawnImpl: fakeSpawn, env: {} });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "spawn-error");
+});
+
+test("runPnpmUpdate: timeout kills the child and maps to update-timeout", async () => {
+  const fakeSpawn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    setTimeout(() => child.emit("close", 0), 50); // close arrives AFTER the 20ms timeout
+    return child;
+  };
+  const result = await runPnpmUpdate("/p", { spawnImpl: fakeSpawn, env: {}, timeoutMs: 20 });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, "update-timeout");
 });
