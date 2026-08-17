@@ -56,7 +56,8 @@ test/update.test.js 新增：纯函数单测
   - `already-running`：已有更新请求在执行中（内存标志位）。
 - 成功：返回 `{ ok: true, output }`，并把内存缓存中的 `current` 乐观更新为新版本
   （运行中的旧代码不受影响；重启后读取真实版本自然收敛）。客户端横幅进入「已更新」状态。
-- 失败（pnpm 非零退出 / 超时 / spawn 错误）：返回 `{ ok: false, code, message, output }`，
+- 失败（pnpm 非零退出 / 超时 / spawn 错误）：返回 `{ ok: false, error: { code, message }, output }`
+  （嵌套 `error` 形状与仓库既有错误约定一致），
   完整输出带给 UI 显示，横幅进入「失败」状态可重试。
 - 安全说明不变：服务仅绑定回环地址；更新路由同 graph 路由一样仅为本机开发工具服务。
 
