@@ -6,6 +6,48 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// Stub the browser module system so the bundle can materialize in Node
+// (same pattern as test/format.test.js). The factory lazily touches react.
+globalThis.window = {
+  __ModuleLoader__: { load: (handoff) => { globalThis.__DSH_GT_LOADED = handoff; } }
+};
+const fakeReact = {
+  createElement: () => null,
+  useState: () => [],
+  useEffect: () => {},
+  useRef: () => ({}),
+  useMemo: () => null,
+  useCallback: (fn) => fn
+};
+await import(new URL("../lib/client.js", import.meta.url));
+const loaded = globalThis.__DSH_GT_LOADED;
+assert.ok(loaded, "bundle must call __ModuleLoader__.load");
+const { bannerKind } = loaded.factory((spec) => {
+  if (spec === "react") return fakeReact;
+  throw new Error(`unexpected require: ${spec}`);
+});
+
+test("bannerKind: hidden without status or when dismissed", () => {
+  assert.equal(bannerKind({ update: null, phase: "idle", dismissed: false }), null);
+  assert.equal(bannerKind({ update: { latest: "0.4.0" }, phase: "idle", dismissed: true }), null);
+  assert.equal(bannerKind({ update: { latest: null }, phase: "idle", dismissed: false }), null);
+});
+
+test("bannerKind: derives banner from status when phase is idle", () => {
+  const base = { phase: "idle", dismissed: false };
+  assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: true, dev: false, profileDir: "/p" }, ...base }), "available");
+  assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: false, dev: true, profileDir: "/p" }, ...base }), "dev");
+  assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: false, dev: false, profileDir: null }, ...base }), "noProfile");
+  assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: false, dev: false, profileDir: "/p" }, ...base }), null);
+});
+
+test("bannerKind: phase overrides status", () => {
+  const update = { latest: "0.4.0", updateAvailable: true, dev: false, profileDir: "/p" };
+  assert.equal(bannerKind({ update, phase: "updating", dismissed: false }), "updating");
+  assert.equal(bannerKind({ update, phase: "updated", dismissed: false }), "updated");
+  assert.equal(bannerKind({ update, phase: "error", dismissed: false }), "error");
+});
+
 test("compareVersions: numeric ordering", () => {
   assert.equal(compareVersions("0.3.1", "0.4.0"), -1);
   assert.equal(compareVersions("0.4.0", "0.3.1"), 1);
