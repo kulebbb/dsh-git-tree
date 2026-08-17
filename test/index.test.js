@@ -142,3 +142,39 @@ test("POST update: 405 for non-POST methods", async () => {
   assert.equal(res.calls[0][1], 405);
   rmSync(profile, { recursive: true, force: true });
 });
+
+test("GET status: 405 for non-GET methods", async () => {
+  const profile = tempProfile({ spec: "^0.3.1" });
+  const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
+  await new Promise((r) => setTimeout(r, 50));
+  const res = fakeRes();
+  await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "POST" }, res);
+  assert.equal(res.calls[0][1], 405);
+  assert.equal(responseOf(res).error.code, "method-not-allowed");
+  rmSync(profile, { recursive: true, force: true });
+});
+
+test("POST update: 500 with pnpm-error shape on pnpm failure", async () => {
+  const profile = tempProfile({ spec: "^0.3.1" });
+  const failingSpawn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    queueMicrotask(() => {
+      child.stderr.emit("data", "ERR_PNPM_FETCH_404");
+      child.emit("close", 1);
+    });
+    return child;
+  };
+  const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch, spawnImpl: failingSpawn });
+  await new Promise((r) => setTimeout(r, 50));
+  const res = fakeRes();
+  await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
+  assert.equal(res.calls[0][1], 500);
+  const body = responseOf(res);
+  assert.equal(body.ok, false);
+  assert.equal(body.error.code, "pnpm-error");
+  assert.match(body.output, /ERR_PNPM_FETCH_404/);
+  rmSync(profile, { recursive: true, force: true });
+});
