@@ -1,6 +1,6 @@
 # @kulebbb/dsh-git-tree
 
-DSH Web GUI 插件：侧边栏底部「Git 树」按钮 → 全屏弹层展示当前工作区（可切换已注册工作区）的 git 提交/分支 DAG 图。
+DSH Web GUI 插件：侧边栏底部「Git 树」按钮 → 全屏弹层展示当前工作区（可切换已注册工作区）的 git 提交/分支 DAG 图。每次打开面板时，工作区选择器自动跟随**右侧对话栏当前所在的工作区**（即当前会话所属的项目）；面板打开期间可手动切换其他工作区查看，但关闭后再打开会再次自动跟随激活工作区。
 
 仓库：<https://github.com/kulebbb/dsh-git-tree> · npm：<https://www.npmjs.com/package/@kulebbb/dsh-git-tree>
 
