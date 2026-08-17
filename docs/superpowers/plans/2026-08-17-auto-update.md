@@ -620,14 +620,6 @@ function makeContext({ config = {}, fetchImpl, spawnImpl, env = {} } = {}) {
   return { ctx, handlers };
 }
 
-async function until(predicate, timeoutMs = 1000) {
-  const start = Date.now();
-  while (!predicate()) {
-    if (Date.now() - start > timeoutMs) throw new Error("until: timed out");
-    await new Promise((r) => setTimeout(r, 5));
-  }
-}
-
 function tempProfile({ spec = null } = {}) {
   const root = mkdtempSync(join(tmpdir(), "gt-index-"));
   const deps = spec ? { dependencies: { "@kulebbb/dsh-git-tree": spec } } : {};
@@ -655,9 +647,9 @@ test("apply: registers all three routes", () => {
 test("GET status: returns derived payload after startup check settles", async () => {
   const profile = tempProfile({ spec: "^0.3.1" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
-  await until(() => true, 50);
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
   const res = fakeRes();
-  await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE }, res);
+  await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "GET" }, res);
   const body = responseOf(res);
   assert.equal(body.ok, true);
   assert.equal(body.current, "9.9.9"); // the startup check read the real package.json of this plugin
@@ -671,7 +663,7 @@ test("GET status: returns derived payload after startup check settles", async ()
 test("POST update: refuses dev installs with 409 dev-install", async () => {
   const profile = tempProfile({ spec: "link:/tmp/checkout" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
-  await until(() => true, 50);
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 409);
@@ -682,7 +674,7 @@ test("POST update: refuses dev installs with 409 dev-install", async () => {
 test("POST update: 409 profile-not-found when no profile locatable", async () => {
   const emptyHome = mkdtempSync(join(tmpdir(), "gt-index-"));
   const { handlers } = makeContext({ fetchImpl: okFetch, env: { DSH_HOME: emptyHome } });
-  await until(() => true, 50);
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 409);
@@ -693,14 +685,14 @@ test("POST update: 409 profile-not-found when no profile locatable", async () =>
 test("POST update: succeeds and refreshes current version", async () => {
   const profile = tempProfile({ spec: "^0.3.1" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch, spawnImpl: okSpawn });
-  await until(() => true, 50);
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 200);
   assert.equal(responseOf(res).ok, true);
   // Subsequent status now reports current == latest (no longer available).
   const res2 = fakeRes();
-  await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE }, res2);
+  await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "GET" }, res2);
   assert.equal(responseOf(res2).updateAvailable, false);
   rmSync(profile, { recursive: true, force: true });
 });
@@ -716,7 +708,7 @@ test("POST update: 409 already-running while another update is in flight", async
     return child; // never settles until the test emits close
   };
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch, spawnImpl: hangingSpawn });
-  await until(() => true, 50);
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
   const first = handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, fakeRes());
   await new Promise((r) => setTimeout(r, 20)); // let updating=true take effect
   const res2 = fakeRes();
@@ -731,7 +723,7 @@ test("POST update: 409 already-running while another update is in flight", async
 test("POST update: 405 for non-POST methods", async () => {
   const profile = tempProfile({ spec: "^0.3.1" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
-  await until(() => true, 50);
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "GET" }, res);
   assert.equal(res.calls[0][1], 405);
@@ -740,7 +732,7 @@ test("POST update: 405 for non-POST methods", async () => {
 ```
 
 测试说明（写给执行者）：
-- `makeContext` 的 `ctx.effect` 立即执行并调用 cleanup——启动检查的 async IIFE 仍在后台跑，用 `until`/短暂等待让其完成。`current` 断言为 `"9.9.9"` 的原因是：本测试进程中 `../package.json` 的版本会被 `checkRegistryLatest` 的 fake 返回值覆盖为 latest？**不是**——`state.current` 来自真实 `../package.json`。若当前插件版本恰好是 0.3.1，则 `current === "0.3.1"`，`latest === "9.9.9"`，`updateAvailable === true`。因此该用例断言应写成：
+- `makeContext` 的 `ctx.effect` 立即执行并调用 cleanup——启动检查的 async IIFE 仍在后台跑，测试用 `await new Promise((r) => setTimeout(r, 50))` 短暂等待让其完成。`state.current` 来自真实 `../package.json`。若当前插件版本恰好是 0.3.1，则 `current === "0.3.1"`，`latest === "9.9.9"`，`updateAvailable === true`。因此该用例断言应写成：
 
 ```js
   assert.equal(body.latest, "9.9.9");
@@ -946,7 +938,7 @@ export function apply(ctx, config, deps = {}) {
 - [ ] **Step 4: 运行确认通过**
 
 Run: `node --test test/index.test.js`
-Expected: PASS（8 个用例）。
+Expected: PASS（7 个用例）。
 
 - [ ] **Step 5: 回归 + 提交**
 
