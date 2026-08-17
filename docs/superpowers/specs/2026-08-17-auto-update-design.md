@@ -65,8 +65,9 @@ test/update.test.js 新增：纯函数单测
 定位链（依次尝试，命中即用）：
 
 1. 可选配置 `config.update.profileDir`（显式指定，最高优先级；cordis.patch.yml 中配置）。
-   `lib/index.js` 将新增 `Config` schema（schemastery 可选对象，仅 `update.profileDir` 一个可选字段），
-   保持插件零配置即可用。
+   `lib/index.js` 不声明 schemastery `Config` schema（保持仓库零依赖、`node --test` 免安装可跑；
+   Cordis 对无 `Config` 导出的插件透传原始配置），通过 `config?.update?.profileDir ?? ""` 读取，
+   插件保持零配置即可用。
 2. 从插件自身安装路径上溯：`fileURLToPath(import.meta.url)` → 逐级上溯，
    找到形如 `<X>/node_modules/@kulebbb/dsh-git-tree` 的祖先目录 → profile = `X`
    （即该 `node_modules` 的父目录）。registry 安装天然命中。
