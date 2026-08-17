@@ -15,6 +15,7 @@ test("compareVersions: prerelease sorts below its release", () => {
   assert.equal(compareVersions("1.0.0-beta.1", "1.0.0"), -1);
   assert.equal(compareVersions("1.0.0", "1.0.0-beta.1"), 1);
   assert.equal(compareVersions("1.0.0-alpha", "1.0.0-beta"), -1);
+  assert.equal(compareVersions("1.0.0-beta.10", "1.0.0-beta.9"), -1);
 });
 
 test("compareVersions: empty and junk inputs degrade to 0", () => {
