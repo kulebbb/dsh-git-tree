@@ -102,6 +102,28 @@ You are an installation assistant. Install the DSH (DeepSeek Harness) plugin @ku
 - Ask me before continuing whenever you need information I have not provided.
 ```
 
+## 自动更新
+
+自 v0.4.0 起，插件在 `dsh web` 启动时**静默**检查 npm registry 是否有新版本（不阻塞启动、离线时自动降级、不产生日志噪音）：
+
+- 侧边栏「Git 树」按钮右上角出现小圆点角标 = 有新版本。
+- 打开面板后，头部下方显示细横幅：「新版本 {latest}（当前 {current}）」+「更新」按钮。
+- 点击「更新」：插件自动在 profile 目录执行 `pnpm add @kulebbb/dsh-git-tree@latest`，成功后横幅变为「已安装，重启 dsh web 后生效」；重启后新版本生效。
+- 更新失败时横幅显示错误信息与可折叠的 pnpm 输出，可重试。
+- 开发安装（`link:`/`file:` spec）不会出现更新按钮，只提示手动更新源码——避免破坏本地链接。
+- 横幅可 ✕ 关闭（本次页面会话内不再显示，角标同步消失）。
+
+可选配置（`cordis.patch.yml` 该插件条目的 `config`，通常不需要）：当插件无法自动定位 profile 目录时，显式指定：
+
+```yaml
+- insert:
+    - id: git-tree
+      name: '@kulebbb/dsh-git-tree'
+      config:
+        update:
+          profileDir: /absolute/path/to/profile
+```
+
 ## 接口
 
 `GET /git-tree/graph?cwd=<绝对目录>&n=<1..2000>` → `{ok, repo, commits, refs}`；错误负载 `{ok:false, error:{code, message}}`，code ∈ `invalid-cwd | not-a-git-repo | git-unavailable | git-timeout | git-error | internal`。`not-a-git-repo` 返回 `200` + `ok:false`（软错误，UI 据此显示提示）；`invalid-cwd` 返回 `400`；其余错误返回 `500`。
@@ -122,6 +144,10 @@ commits[].date 为作者时间（ISO 8601，%aI），前端在每行提交说明
 图上同步标记：本地 HEAD 提交圆点带绿色实线环 + 「本地」角标，云端 HEAD 提交圆点带蓝色虚线环 + 「云端」角标（本地与云端指向同一提交时两个角标并排显示）。
 
 payload 结构：`commits[].body`（提交正文，可能为空字符串）、`commits[].stats`（`{files, insertions, deletions}`，无变动的提交为 `null`）、`repo.localHead`（`{hash, branch|null}`）、`repo.remoteHead`（`{ref, hash, ahead, behind}|null`）。
+
+`GET /git-tree/update/status` → `{ok, current, latest, updateAvailable, dev, profileDir, checkError}`。`latest` 为 `null` 表示检查失败/离线（UI 静默降级）；`updateAvailable` 仅在「存在更新版本 + 非开发安装 + profile 可定位」时为其。
+
+`POST /git-tree/update` → 在 profile 目录执行 `pnpm add @kulebbb/dsh-git-tree@latest`；成功 `{ok:true, output}`；失败 `{ok:false, error:{code, message}, output}`（`output` 为截断的 pnpm 输出），code ∈ `dev-install | profile-not-found | already-running | pnpm-error | update-timeout | spawn-error | method-not-allowed`。更新完成后需重启 `dsh web` 生效。
 
 ## 安全说明
 
