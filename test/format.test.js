@@ -25,7 +25,7 @@ const exports_ = loaded.factory((spec) => {
   if (spec === "react") return fakeReact;
   throw new Error(`unexpected require: ${spec}`);
 });
-const { formatLocalTime, truncateText, statsParts, shortHashOf } = exports_;
+const { formatLocalTime, truncateText, statsParts, shortHashOf, computeSvgWidth } = exports_;
 
 test("formatLocalTime: formats ISO with explicit offset in local time", () => {
   // +08:00 input shown in Asia/Shanghai is unchanged
@@ -100,4 +100,24 @@ test("shortHashOf: trims to 7 chars and guards falsy input", () => {
   assert.equal(shortHashOf("0123456789abcdef"), "0123456");
   assert.equal(shortHashOf(""), "?");
   assert.equal(shortHashOf(null), "?");
+});
+
+// Regression for the horizontal-scrollbar bug: the SVG width must always be
+// clamped to the measured container (or, when unmeasured, to the panel's max
+// content width) — never to the raw natural width of the longest row.
+test("computeSvgWidth: clamps an overflowing natural width to the viewport", () => {
+  assert.equal(computeSvgWidth(5000, 1000), 968); // 1000 - 32 scroll padding
+  assert.equal(computeSvgWidth(5000, 500), 468);
+});
+
+test("computeSvgWidth: keeps the natural width when it already fits", () => {
+  assert.equal(computeSvgWidth(300, 1000), 300);
+  assert.equal(computeSvgWidth(928, 928), 896); // exactly the content width minus padding
+});
+
+test("computeSvgWidth: unmeasured viewport falls back to the panel max, never the raw width", () => {
+  // This is the invariant that failed when the scroll container ref was not
+  // attached: viewportW stayed 0 and svgW became the untruncated natural width.
+  assert.equal(computeSvgWidth(5000, 0), 928); // 960 panel max - 32 padding
+  assert.equal(computeSvgWidth(500, 0), 500);
 });
