@@ -144,6 +144,15 @@ test("deriveStatus: check failure keeps latest null and surfaces checkError", ()
   assert.equal(s.checkError, "ECONNREFUSED");
 });
 
+test("deriveStatus: unknown current never claims an update", () => {
+  assert.equal(deriveStatus({ current: undefined, latest: "0.4.0", dev: false, profileDir: "/p" }).updateAvailable, false);
+  assert.equal(deriveStatus({ current: null, latest: "0.4.0", dev: false, profileDir: "/p" }).updateAvailable, false);
+});
+
+test("deriveStatus: unknown dev flag fails closed", () => {
+  assert.equal(deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: undefined, profileDir: "/p" }).updateAvailable, false);
+});
+
 test("checkRegistryLatest: parses latest from registry payload", async () => {
   const fakeFetch = async () => ({ ok: true, json: async () => ({ version: "0.4.0" }) });
   const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
@@ -163,4 +172,18 @@ test("checkRegistryLatest: thrown fetch error is a silent failure", async () => 
   const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
   assert.equal(result.latest, null);
   assert.match(result.checkError, /ECONNREFUSED/);
+});
+
+test("checkRegistryLatest: json parse failure is a silent failure", async () => {
+  const fakeFetch = async () => ({ ok: true, json: async () => { throw new SyntaxError("Unexpected token"); } });
+  const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
+  assert.equal(result.latest, null);
+  assert.match(result.checkError, /Unexpected token/);
+});
+
+test("checkRegistryLatest: non-string version yields null latest without error", async () => {
+  const fakeFetch = async () => ({ ok: true, json: async () => ({ version: 123 }) });
+  const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
+  assert.equal(result.latest, null);
+  assert.equal(result.checkError, null);
 });
