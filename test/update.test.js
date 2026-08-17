@@ -243,15 +243,30 @@ test("runPnpmUpdate: spawn failure maps to spawn-error", async () => {
 });
 
 test("runPnpmUpdate: timeout kills the child and maps to update-timeout", async () => {
+  let killed = false;
   const fakeSpawn = () => {
     const child = new EventEmitter();
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
-    child.kill = () => {};
+    child.kill = () => { killed = true; };
     setTimeout(() => child.emit("close", 0), 50); // close arrives AFTER the 20ms timeout
     return child;
   };
   const result = await runPnpmUpdate("/p", { spawnImpl: fakeSpawn, env: {}, timeoutMs: 20 });
   assert.equal(result.ok, false);
   assert.equal(result.code, "update-timeout");
+  assert.equal(killed, true);
+});
+
+test("runPnpmUpdate: close before timeout settles success and clears the timer", async () => {
+  const fakeSpawn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.kill = () => {};
+    setTimeout(() => child.emit("close", 0), 5); // well before the 500ms timeout
+    return child;
+  };
+  const result = await runPnpmUpdate("/p", { spawnImpl: fakeSpawn, env: {}, timeoutMs: 500 });
+  assert.equal(result.ok, true);
 });
