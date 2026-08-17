@@ -48,6 +48,18 @@ test("bannerKind: phase overrides status", () => {
   assert.equal(bannerKind({ update, phase: "error", dismissed: false }), "error");
 });
 
+test("bannerKind: dismissed hides even non-idle phases", () => {
+  const update = { latest: "0.4.0", updateAvailable: true, dev: false, profileDir: "/p" };
+  assert.equal(bannerKind({ update, phase: "updating", dismissed: true }), null);
+  assert.equal(bannerKind({ update, phase: "error", dismissed: true }), null);
+});
+
+test("bannerKind: phase overrides status even without updateAvailable", () => {
+  const update = { latest: "0.4.0", updateAvailable: false, dev: false, profileDir: "/p" };
+  assert.equal(bannerKind({ update, phase: "updating", dismissed: false }), "updating");
+  assert.equal(bannerKind({ update, phase: "error", dismissed: false }), "error");
+});
+
 test("compareVersions: numeric ordering", () => {
   assert.equal(compareVersions("0.3.1", "0.4.0"), -1);
   assert.equal(compareVersions("0.4.0", "0.3.1"), 1);
