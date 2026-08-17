@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareVersions, isDevSpec, findProfileDir, readDependencySpec } from "../lib/update.js";
+import { compareVersions, isDevSpec, findProfileDir, readDependencySpec, deriveStatus, checkRegistryLatest } from "../lib/update.js";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -114,4 +114,53 @@ test("readDependencySpec: corrupted package.json returns null", () => {
   writeFileSync(join(root, "package.json"), "{ not valid json");
   assert.equal(readDependencySpec(root), null);
   rmSync(root, { recursive: true, force: true });
+});
+
+test("deriveStatus: update available when newer, non-dev, profile found", () => {
+  const s = deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: false, profileDir: "/p" });
+  assert.equal(s.updateAvailable, true);
+  assert.equal(s.current, "0.3.1");
+  assert.equal(s.latest, "0.4.0");
+});
+
+test("deriveStatus: not available when already current", () => {
+  const s = deriveStatus({ current: "0.4.0", latest: "0.4.0", dev: false, profileDir: "/p" });
+  assert.equal(s.updateAvailable, false);
+});
+
+test("deriveStatus: dev install never offers update", () => {
+  const s = deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: true, profileDir: "/p" });
+  assert.equal(s.updateAvailable, false);
+});
+
+test("deriveStatus: missing profile dir never offers update", () => {
+  const s = deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: false, profileDir: null });
+  assert.equal(s.updateAvailable, false);
+});
+
+test("deriveStatus: check failure keeps latest null and surfaces checkError", () => {
+  const s = deriveStatus({ current: "0.3.1", latest: null, dev: false, profileDir: "/p", checkError: "ECONNREFUSED" });
+  assert.equal(s.updateAvailable, false);
+  assert.equal(s.checkError, "ECONNREFUSED");
+});
+
+test("checkRegistryLatest: parses latest from registry payload", async () => {
+  const fakeFetch = async () => ({ ok: true, json: async () => ({ version: "0.4.0" }) });
+  const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
+  assert.equal(result.latest, "0.4.0");
+  assert.equal(result.checkError, null);
+});
+
+test("checkRegistryLatest: non-ok response is a silent failure", async () => {
+  const fakeFetch = async () => ({ ok: false, status: 404 });
+  const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
+  assert.equal(result.latest, null);
+  assert.match(result.checkError, /404/);
+});
+
+test("checkRegistryLatest: thrown fetch error is a silent failure", async () => {
+  const fakeFetch = async () => { throw new Error("ECONNREFUSED"); };
+  const result = await checkRegistryLatest({ fetchImpl: fakeFetch });
+  assert.equal(result.latest, null);
+  assert.match(result.checkError, /ECONNREFUSED/);
 });
