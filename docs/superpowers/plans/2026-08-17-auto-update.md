@@ -496,7 +496,7 @@ test("runPnpmUpdate: timeout kills the child and maps to update-timeout", async 
     child.stderr = new EventEmitter();
     let killed = false;
     child.kill = () => { killed = true; };
-    queueMicrotask(() => child.emit("close", 0)); // arrives only after the timeout guard fired
+    setTimeout(() => child.emit("close", 0), 50); // close arrives AFTER the 20ms timeout
     return child;
   };
   const result = await runPnpmUpdate("/p", { spawnImpl: fakeSpawn, env: {}, timeoutMs: 20 });
@@ -505,7 +505,7 @@ test("runPnpmUpdate: timeout kills the child and maps to update-timeout", async 
 });
 ```
 
-（timeout 测试说明：`close(0)` 在 20ms 超时之后才发出，`settled` 守卫保证先到先得、结果仍是超时。）
+（timeout 测试说明：`close(0)` 必须用 `setTimeout(..., 50)` 在 20ms 超时**之后**发出——若用 `queueMicrotask`，微任务先于定时器执行，`close` 会先 settle 为成功，测试不可能通过。`settled` 守卫保证先到先得，结果仍是超时。）
 
 - [ ] **Step 2: 运行确认失败**
 
