@@ -37,7 +37,8 @@ test("bannerKind: derives banner from status when phase is idle", () => {
   const base = { phase: "idle", dismissed: false };
   assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: true, dev: false, profileDir: "/p" }, ...base }), "available");
   assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: false, dev: true, profileDir: "/p" }, ...base }), "dev");
-  assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: false, dev: false, profileDir: null }, ...base }), "noProfile");
+  assert.equal(bannerKind({ update: { latest: "0.4.0", current: "0.3.1", updateAvailable: false, dev: false, profileDir: null }, ...base }), "noProfile");
+  assert.equal(bannerKind({ update: { latest: "0.4.0", current: "0.4.0", updateAvailable: false, dev: false, profileDir: null }, ...base }), null);
   assert.equal(bannerKind({ update: { latest: "0.4.0", updateAvailable: false, dev: false, profileDir: "/p" }, ...base }), null);
 });
 
