@@ -1,10 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { compareVersions, isDevSpec } from "../lib/update.js";
+import { compareVersions, isDevSpec, findProfileDir, readDependencySpec } from "../lib/update.js";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { findProfileDir, readDependencySpec } from "../lib/update.js";
 
 test("compareVersions: numeric ordering", () => {
   assert.equal(compareVersions("0.3.1", "0.4.0"), -1);
@@ -107,5 +106,12 @@ test("readDependencySpec: returns null when absent or unreadable", () => {
   writeFileSync(join(root, "package.json"), "{}");
   assert.equal(readDependencySpec(root), null);
   assert.equal(readDependencySpec(join(root, "missing")), null);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("readDependencySpec: corrupted package.json returns null", () => {
+  const root = mkdtempSync(join(tmpdir(), "gt-update-"));
+  writeFileSync(join(root, "package.json"), "{ not valid json");
+  assert.equal(readDependencySpec(root), null);
   rmSync(root, { recursive: true, force: true });
 });
