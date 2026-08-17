@@ -25,7 +25,7 @@ const exports_ = loaded.factory((spec) => {
   if (spec === "react") return fakeReact;
   throw new Error(`unexpected require: ${spec}`);
 });
-const { formatLocalTime } = exports_;
+const { formatLocalTime, truncateText, statsParts, shortHashOf } = exports_;
 
 test("formatLocalTime: formats ISO with explicit offset in local time", () => {
   // +08:00 input shown in Asia/Shanghai is unchanged
@@ -43,4 +43,61 @@ test("formatLocalTime: zero-pads month, day, hour, minute", () => {
 test("formatLocalTime: invalid input falls back to the raw string", () => {
   assert.equal(formatLocalTime("not-a-date"), "not-a-date");
   assert.equal(formatLocalTime(""), "");
+});
+
+// Monospace-ish fake measurer: 1px per char, 2px for the ellipsis.
+const mono = (s) => [...s].reduce((w, ch) => w + (ch === "…" ? 2 : 1), 0);
+
+test("truncateText: leaves text unchanged when it fits", () => {
+  assert.equal(truncateText("short", 20, mono), "short");
+});
+
+test("truncateText: cuts to the budget and appends an ellipsis", () => {
+  // "abcdefghij" = 10px; 8px total budget leaves 6 chars + 2px ellipsis.
+  assert.equal(truncateText("abcdefghij", 8, mono), "abcdef…");
+});
+
+test("truncateText: returns only the ellipsis when nothing fits", () => {
+  assert.equal(truncateText("abcdefghij", 1, mono), "…");
+  assert.equal(truncateText("abcdefghij", 0, mono), "…");
+});
+
+test("truncateText: empty strings stay empty", () => {
+  assert.equal(truncateText("", 10, mono), "");
+});
+
+test("statsParts: builds git-style localized diff stat parts", () => {
+  const t = (key, vars) => {
+    const en = {
+      "panel.statsFiles": "{n} files changed",
+      "panel.statsFilesOne": "1 file changed",
+      "panel.statsIns": "{n} insertions(+)",
+      "panel.statsInsOne": "1 insertion(+)",
+      "panel.statsDel": "{n} deletions(-)",
+      "panel.statsDelOne": "1 deletion(-)"
+    };
+    const s = en[key] ?? key;
+    return s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k]));
+  };
+  assert.deepEqual(statsParts(t, { files: 1, insertions: 24, deletions: 16 }), [
+    { text: "1 file changed", kind: "plain" },
+    { text: "24 insertions(+)", kind: "ins" },
+    { text: "16 deletions(-)", kind: "del" }
+  ]);
+  // Zero-valued parts are omitted, mirroring git --shortstat.
+  assert.deepEqual(statsParts(t, { files: 1, insertions: 1, deletions: 0 }), [
+    { text: "1 file changed", kind: "plain" },
+    { text: "1 insertion(+)", kind: "ins" }
+  ]);
+  assert.deepEqual(statsParts(t, { files: 3, insertions: 0, deletions: 0 }), [
+    { text: "3 files changed", kind: "plain" }
+  ]);
+  // Merge commits with no diff have no stats → empty.
+  assert.deepEqual(statsParts(t, null), []);
+});
+
+test("shortHashOf: trims to 7 chars and guards falsy input", () => {
+  assert.equal(shortHashOf("0123456789abcdef"), "0123456");
+  assert.equal(shortHashOf(""), "?");
+  assert.equal(shortHashOf(null), "?");
 });

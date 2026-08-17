@@ -108,6 +108,21 @@ You are an installation assistant. Install the DSH (DeepSeek Harness) plugin @ku
 
 commits[].date 为作者时间（ISO 8601，%aI），前端在每行提交说明下方第二行按浏览器本地时区展示为 YYYY-MM-DD HH:mm。commits[].shortHash 为 7 位短哈希；每行提交说明末尾以 GitHub 风格弱化色展示（如 `feat: xxx (9259220)`），点击该行仍复制完整哈希。
 
+### 超长文案与横向滚动
+
+提交行文本按像素宽度测量后渲染，**超长 subject 自动以 "…" 截断**，SVG 宽度封顶为面板可视内容宽度，**任何情况下都不会出现横向滚动条**（长文案只截断，不撑宽）。悬停任意提交行时弹出自定义 tooltip，展示**完整提交信息**（完整 subject + 提交正文 body + 哈希 + 作者 + 本地时间 + refs）与**代码变动量**（`1 file changed, 24 insertions(+), 16 deletions(-)` 风格，来自 `git log --shortstat`；无变动的 merge 提交不显示该行）。
+
+### 本地 / 云端 HEAD
+
+面板头部常驻状态条展示：
+
+- `本地 <branch> → <7位哈希>`（HEAD 游离时显示「本地 HEAD（游离）→ <哈希>」）
+- `云端 <upstream> → <7位哈希> ↑n ↓m`：云端取当前分支的 `@{upstream}`，未配置上游时回退到 `origin/<分支名>`，均不存在时显示「云端：未推送」；↑n ↓m 为领先/落后提交数（`git rev-list --left-right --count HEAD...<ref>`），两端同步时省略。
+
+图上同步标记：本地 HEAD 提交圆点带绿色实线环 + 「本地」角标，云端 HEAD 提交圆点带蓝色虚线环 + 「云端」角标（本地与云端指向同一提交时两个角标并排显示）。
+
+payload 结构：`commits[].body`（提交正文，可能为空字符串）、`commits[].stats`（`{files, insertions, deletions}`，无变动的提交为 `null`）、`repo.localHead`（`{hash, branch|null}`）、`repo.remoteHead`（`{ref, hash, ahead, behind}|null`）。
+
 ## 安全说明
 
 该路由接受任意 `cwd` 并在其上执行 git，属于本机开发工具。请保持 web server 绑定在回环地址（默认 `127.0.0.1`）；不要用 `--host 0.0.0.0` 暴露到网络。

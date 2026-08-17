@@ -98,6 +98,96 @@ test("collectGraph handles an empty repository", async () => {
     assert.equal(payload.ok, true);
     assert.deepEqual(payload.commits, []);
     assert.equal(payload.repo.currentBranch, "main");
+    assert.equal(payload.repo.localHead, null, "empty repo has no HEAD hash yet");
+    assert.equal(payload.repo.remoteHead, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collectGraph attaches commit bodies and per-commit diff stats", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dsh-git-tree-repo-"));
+  try {
+    makeRepo(dir);
+    // A message with a body (multi-paragraph) as the new HEAD.
+    execFileSync("bash", ["-c", `echo H > H.txt && git add H.txt && git commit -q -m "subject line" -m "first paragraph" -m "second paragraph"`],
+      { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: "2026-08-01T00:00:08+08:00", GIT_COMMITTER_DATE: "2026-08-01T00:00:08+08:00" } });
+    const payload = await collectGraph(dir, 200);
+    const top = payload.commits[0];
+    assert.equal(top.subject, "subject line");
+    assert.equal(top.body, "first paragraph\n\nsecond paragraph");
+    assert.deepEqual(top.stats, { files: 1, insertions: 1, deletions: 0 });
+    // Clean merge commit M has no diff → stats null.
+    const merge = payload.commits.find((c) => c.subject === "M");
+    assert.equal(merge.stats, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collectGraph resolves upstream remote head with ahead/behind counts", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dsh-git-tree-repo-"));
+  const origin = mkdtempSync(join(tmpdir(), "dsh-git-tree-origin-"));
+  try {
+    makeRepo(dir);
+    run(dir, ["init", "--bare", "-q", origin]);
+    run(dir, ["remote", "add", "origin", origin]);
+    run(dir, ["push", "-q", "-u", "origin", "fix"]);
+    let payload = await collectGraph(dir, 200);
+    assert.equal(payload.repo.localHead.branch, "fix");
+    assert.equal(payload.repo.localHead.hash, run(dir, ["rev-parse", "HEAD"]));
+    assert.equal(payload.repo.remoteHead.ref, "origin/fix");
+    assert.equal(payload.repo.remoteHead.hash, run(dir, ["rev-parse", "origin/fix"]));
+    assert.deepEqual({ ahead: payload.repo.remoteHead.ahead, behind: payload.repo.remoteHead.behind }, { ahead: 0, behind: 0 });
+    // A local-only commit makes HEAD one ahead of the remote.
+    execFileSync("bash", ["-c", `echo H > H.txt && git add H.txt && git commit -q -m "local only"`],
+      { cwd: dir, env: { ...process.env, GIT_AUTHOR_DATE: "2026-08-01T00:00:08+08:00", GIT_COMMITTER_DATE: "2026-08-01T00:00:08+08:00" } });
+    payload = await collectGraph(dir, 200);
+    assert.equal(payload.repo.remoteHead.ahead, 1);
+    assert.equal(payload.repo.remoteHead.behind, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(origin, { recursive: true, force: true });
+  }
+});
+
+test("collectGraph falls back to origin/<branch> without an upstream", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dsh-git-tree-repo-"));
+  const origin = mkdtempSync(join(tmpdir(), "dsh-git-tree-origin-"));
+  try {
+    makeRepo(dir);
+    run(dir, ["init", "--bare", "-q", origin]);
+    run(dir, ["remote", "add", "origin", origin]);
+    run(dir, ["push", "-q", "origin", "fix"]); // no -u: no upstream configured
+    const payload = await collectGraph(dir, 200);
+    assert.equal(payload.repo.remoteHead.ref, "origin/fix");
+    assert.equal(payload.repo.remoteHead.hash, run(dir, ["rev-parse", "origin/fix"]));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+    rmSync(origin, { recursive: true, force: true });
+  }
+});
+
+test("collectGraph reports no remote head when the branch was never pushed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dsh-git-tree-repo-"));
+  try {
+    makeRepo(dir);
+    const payload = await collectGraph(dir, 200);
+    assert.equal(payload.repo.localHead.branch, "fix");
+    assert.equal(payload.repo.remoteHead, null);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("collectGraph marks detached HEAD (branch null, hash present)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dsh-git-tree-repo-"));
+  try {
+    makeRepo(dir);
+    run(dir, ["checkout", "-q", "HEAD~1"]);
+    const payload = await collectGraph(dir, 200);
+    assert.equal(payload.repo.localHead.branch, null);
+    assert.equal(payload.repo.localHead.hash, run(dir, ["rev-parse", "HEAD"]));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
