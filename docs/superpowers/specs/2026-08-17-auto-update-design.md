@@ -110,7 +110,10 @@ test/update.test.js 新增：纯函数单测
 | `dev-install` | 409 | 开发安装（link/file），拒绝更新 |
 | `profile-not-found` | 409 | 无法定位 profile 目录 |
 | `already-running` | 409 | 已有更新请求在执行 |
-| `registry-unreachable` | 200（status 内 checkError） | 启动时 registry 检查失败，静默降级 |
+| `method-not-allowed` | 405 | 非 GET/POST 方法 |
+| `pnpm-error` / `update-timeout` / `spawn-error` | 500 | POST 更新执行失败（带截断输出） |
+
+> registry 检查失败**不产生错误码**：status 负载中 `latest: null` + `checkError`（原始错误字符串，仅调试用，UI 不消费），静默降级。
 
 ## 风险与对策
 
