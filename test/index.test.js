@@ -110,7 +110,8 @@ test("GET status: desktop profile reports the version without offering the butto
 
 test("POST update: refuses the desktop profile with 409 desktop-managed", async () => {
   const { root, dir } = tempDesktopProfile();
-  const { handlers } = makeContext({ config: { update: { profileDir: dir } }, fetchImpl: okFetch });
+  // spawnImpl is a guard: a regression here must not run pnpm against the temp profile.
+  const { handlers } = makeContext({ config: { update: { profileDir: dir } }, fetchImpl: okFetch, spawnImpl: okSpawn });
   await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);

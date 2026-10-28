@@ -11,7 +11,7 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8"
 
 test("manifest: declares a bundle patch pointing at a shipped file", () => {
   assert.equal(manifest.dsh?.bundle?.patch, "./cordis.patch.yml");
-  assert.deepEqual(manifest.dsh?.client, { platform: "web" });
+  assert.equal(manifest.dsh?.client?.platform, "web");
   assert.equal(statSync(new URL("../cordis.patch.yml", import.meta.url)).isFile(), true);
 });
 
@@ -19,7 +19,8 @@ test("patch: inserts this package as a loader row", () => {
   const patch = read("cordis.patch.yml");
   assert.match(patch, /^-\s*insert:\s*$/m);
   assert.match(patch, /^\s+-\s*id:\s*git-tree\s*$/m);
-  assert.match(patch, new RegExp(`^\\s+name:\\s*'${manifest.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}'\\s*$`, "m"));
+  // Quote style is the patch author's choice; only the value is contractual.
+  assert.match(patch, new RegExp(`^\\s+name:\\s*['"]?${manifest.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]?\\s*$`, "m"));
 });
 
 test("manifest: ships every installed resource", () => {

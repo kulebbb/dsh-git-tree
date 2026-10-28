@@ -236,9 +236,17 @@ test("isDesktopProfile: Electron-hosted processes are desktop whatever the path"
 });
 
 test("deriveStatus: desktop profile reports the version but never offers the button", () => {
-  const s = deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: false, profileDir: "/p/desktop" });
+  const versions = { ...process.versions, electron: undefined };
+  const s = deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: false, profileDir: "/p/desktop", versions });
   assert.equal(s.desktop, true);
   assert.equal(s.newer, true);
+  assert.equal(s.updateAvailable, false);
+});
+
+test("deriveStatus: an Electron-hosted process never offers the button", () => {
+  const versions = { ...process.versions, electron: "44.7.0" };
+  const s = deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: false, profileDir: "/p", versions });
+  assert.equal(s.desktop, true);
   assert.equal(s.updateAvailable, false);
 });
 
