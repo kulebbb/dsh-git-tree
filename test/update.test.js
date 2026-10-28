@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { compareVersions, isDevSpec, findProfileDir, readDependencySpec, deriveStatus, checkRegistryLatest, runPnpmUpdate } from "../lib/update.js";
+import { compareVersions, isDevSpec, isDesktopProfile, findProfileDir, readDependencySpec, deriveStatus, checkRegistryLatest, runPnpmUpdate } from "../lib/update.js";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -59,6 +59,16 @@ test("bannerKind: phase overrides status even without updateAvailable", () => {
   const update = { latest: "0.4.0", updateAvailable: false, dev: false, profileDir: "/p" };
   assert.equal(bannerKind({ update, phase: "updating", dismissed: false }), "updating");
   assert.equal(bannerKind({ update, phase: "error", dismissed: false }), "error");
+});
+
+test("bannerKind: desktop profile points at the Plugins page instead of a button", () => {
+  const base = { phase: "idle", dismissed: false };
+  const desktop = { desktop: true, updateAvailable: false, dev: false, profileDir: "/p/desktop" };
+  assert.equal(bannerKind({ update: { ...desktop, latest: "0.4.0", current: "0.3.1", newer: true }, ...base }), "managed");
+  assert.equal(bannerKind({ update: { ...desktop, latest: "0.4.0", current: "0.4.0", newer: false }, ...base }), null);
+  assert.equal(bannerKind({ update: { ...desktop, latest: "0.4.0", current: "0.3.1", newer: true }, phase: "idle", dismissed: true }), null);
+  // A source install on desktop still gets the dev hint (the update is the source's job).
+  assert.equal(bannerKind({ update: { ...desktop, latest: "0.4.0", current: "0.3.1", newer: true, dev: true }, ...base }), "dev");
 });
 
 test("compareVersions: numeric ordering", () => {
@@ -207,6 +217,29 @@ test("deriveStatus: unknown current never claims an update", () => {
 
 test("deriveStatus: unknown dev flag fails closed", () => {
   assert.equal(deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: undefined, profileDir: "/p" }).updateAvailable, false);
+});
+
+test("isDesktopProfile: only the Electron-owned desktop profile matches", () => {
+  assert.equal(isDesktopProfile("/Users/x/.dsh/profiles/desktop"), true);
+  assert.equal(isDesktopProfile("/Users/x/.dsh/profiles/web"), false);
+  assert.equal(isDesktopProfile("/Users/x/.dsh/profiles/desktop-2"), false);
+  assert.equal(isDesktopProfile(null), false);
+  assert.equal(isDesktopProfile(""), false);
+});
+
+test("isDesktopProfile: Electron-hosted processes are desktop whatever the path", () => {
+  const electron = { ...process.versions, electron: "39.0.0" };
+  // A link:/file: install resolves to its checkout, so the directory name is useless.
+  assert.equal(isDesktopProfile("/tmp/checkout", electron), true);
+  assert.equal(isDesktopProfile(null, electron), true);
+  assert.equal(isDesktopProfile("/Users/x/.dsh/profiles/web", { ...process.versions, electron: undefined }), false);
+});
+
+test("deriveStatus: desktop profile reports the version but never offers the button", () => {
+  const s = deriveStatus({ current: "0.3.1", latest: "0.4.0", dev: false, profileDir: "/p/desktop" });
+  assert.equal(s.desktop, true);
+  assert.equal(s.newer, true);
+  assert.equal(s.updateAvailable, false);
 });
 
 test("checkRegistryLatest: parses latest from registry payload", async () => {

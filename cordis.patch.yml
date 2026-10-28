@@ -1,0 +1,6 @@
+# Git tree: a sidebar footer button that opens the commit/branch graph of the
+# current workspace. The client half comes from this same package, so the
+# bundle inserts one row only.
+- insert:
+    - id: git-tree
+      name: '@kulebbb/dsh-git-tree'

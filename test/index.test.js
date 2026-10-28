@@ -41,6 +41,16 @@ function tempProfile({ spec = null } = {}) {
   return root;
 }
 
+/** Profile laid out like the Electron app's: the directory is named "desktop". */
+function tempDesktopProfile({ spec = "^0.3.1" } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "gt-index-"));
+  const dir = join(root, "desktop");
+  mkdirSync(dir);
+  const deps = spec ? { dependencies: { "@kulebbb/dsh-git-tree": spec } } : {};
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "dsh-profile-desktop", ...deps }));
+  return { root, dir };
+}
+
 const okFetch = async () => ({ ok: true, json: async () => ({ version: "9.9.9" }) });
 const okSpawn = () => {
   const child = new EventEmitter();
@@ -82,6 +92,31 @@ test("POST update: refuses dev installs with 409 dev-install", async () => {
   assert.equal(res.calls[0][1], 409);
   assert.equal(responseOf(res).error.code, "dev-install");
   rmSync(profile, { recursive: true, force: true });
+});
+
+test("GET status: desktop profile reports the version without offering the button", async () => {
+  const { root, dir } = tempDesktopProfile();
+  const { handlers } = makeContext({ config: { update: { profileDir: dir } }, fetchImpl: okFetch });
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  const res = fakeRes();
+  await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "GET" }, res);
+  const body = responseOf(res);
+  assert.equal(body.ok, true);
+  assert.equal(body.desktop, true);
+  assert.equal(body.newer, compareVersions("9.9.9", body.current) > 0);
+  assert.equal(body.updateAvailable, false);
+  rmSync(root, { recursive: true, force: true });
+});
+
+test("POST update: refuses the desktop profile with 409 desktop-managed", async () => {
+  const { root, dir } = tempDesktopProfile();
+  const { handlers } = makeContext({ config: { update: { profileDir: dir } }, fetchImpl: okFetch });
+  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  const res = fakeRes();
+  await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
+  assert.equal(res.calls[0][1], 409);
+  assert.equal(responseOf(res).error.code, "desktop-managed");
+  rmSync(root, { recursive: true, force: true });
 });
 
 test("POST update: 409 profile-not-found when no profile locatable", async () => {

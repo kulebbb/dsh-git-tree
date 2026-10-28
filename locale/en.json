@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Git Tree",
+    "description": "Open a visual commit and branch graph of the current workspace."
+  }
+}
