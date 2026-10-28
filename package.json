@@ -22,6 +22,7 @@
     "type": "git",
     "url": "git+https://github.com/kulebbb/dsh-git-tree.git"
   },
+  "icon": "./icon.svg",
   "publishConfig": {
     "access": "public"
   },

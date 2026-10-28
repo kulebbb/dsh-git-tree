@@ -12,15 +12,17 @@ const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8"
 test("manifest: declares a bundle patch pointing at a shipped file", () => {
   assert.equal(manifest.dsh?.bundle?.patch, "./cordis.patch.yml");
   assert.equal(manifest.dsh?.client?.platform, "web");
+  assert.equal(manifest.icon, "./icon.svg");
   assert.equal(statSync(new URL("../cordis.patch.yml", import.meta.url)).isFile(), true);
 });
 
 test("patch: inserts this package as a loader row", () => {
   const patch = read("cordis.patch.yml");
-  assert.match(patch, /^-\s*insert:\s*$/m);
-  assert.match(patch, /^\s+-\s*id:\s*git-tree\s*$/m);
-  // Quote style is the patch author's choice; only the value is contractual.
-  assert.match(patch, new RegExp(`^\\s+name:\\s*['"]?${manifest.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}['"]?\\s*$`, "m"));
+  // Exactly one insert block, with the row nested under it at the shipped indentation.
+  assert.equal((patch.match(/^- insert:[ \t]*$/gm) ?? []).length, 1, "exactly one top-level insert block");
+  assert.match(patch, /^ {4}- id: git-tree$/m, "row id at insert-item indentation");
+  const name = manifest.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.match(patch, new RegExp(`^ {6}name: (['"])${name}\\1$`, "m"), "row name at property indentation");
 });
 
 test("manifest: ships every installed resource", () => {

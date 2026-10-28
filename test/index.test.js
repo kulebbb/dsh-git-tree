@@ -21,7 +21,7 @@ function responseOf(res) {
   return end ? JSON.parse(end[1]) : null;
 }
 
-function makeContext({ config = {}, fetchImpl, spawnImpl, env = {} } = {}) {
+function makeContext({ config = {}, fetchImpl, spawnImpl, env = {}, versions = { ...process.versions, electron: undefined } } = {}) {
   const handlers = {};
   const ctx = {
     webServer: {
@@ -30,8 +30,22 @@ function makeContext({ config = {}, fetchImpl, spawnImpl, env = {} } = {}) {
     logger: { warn: () => {}, debug: () => {} },
     effect: (fn) => { const cleanup = fn(); if (typeof cleanup === "function") cleanup(); }
   };
-  apply(ctx, config, { fetchImpl, spawnImpl, env });
+  apply(ctx, config, { fetchImpl, spawnImpl, env, versions });
   return { ctx, handlers };
+}
+
+/**
+ * Wait for the startup registry check to settle by asking the route itself,
+ * instead of racing a fixed sleep (CI machines are slower than this one).
+ */
+async function waitForStatus(handlers) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const res = fakeRes();
+    await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "GET" }, res);
+    if (responseOf(res)?.latest != null) return;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("update status never settled");
 }
 
 function tempProfile({ spec = null } = {}) {
@@ -71,7 +85,7 @@ test("apply: registers all three routes", () => {
 test("GET status: returns derived payload after startup check settles", async () => {
   const profile = tempProfile({ spec: "^0.3.1" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "GET" }, res);
   const body = responseOf(res);
@@ -86,7 +100,7 @@ test("GET status: returns derived payload after startup check settles", async ()
 test("POST update: refuses dev installs with 409 dev-install", async () => {
   const profile = tempProfile({ spec: "link:/tmp/checkout" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 409);
@@ -97,7 +111,7 @@ test("POST update: refuses dev installs with 409 dev-install", async () => {
 test("GET status: desktop profile reports the version without offering the button", async () => {
   const { root, dir } = tempDesktopProfile();
   const { handlers } = makeContext({ config: { update: { profileDir: dir } }, fetchImpl: okFetch });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "GET" }, res);
   const body = responseOf(res);
@@ -112,7 +126,7 @@ test("POST update: refuses the desktop profile with 409 desktop-managed", async 
   const { root, dir } = tempDesktopProfile();
   // spawnImpl is a guard: a regression here must not run pnpm against the temp profile.
   const { handlers } = makeContext({ config: { update: { profileDir: dir } }, fetchImpl: okFetch, spawnImpl: okSpawn });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 409);
@@ -123,7 +137,7 @@ test("POST update: refuses the desktop profile with 409 desktop-managed", async 
 test("POST update: 409 profile-not-found when no profile locatable", async () => {
   const emptyHome = mkdtempSync(join(tmpdir(), "gt-index-"));
   const { handlers } = makeContext({ fetchImpl: okFetch, env: { DSH_HOME: emptyHome } });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 409);
@@ -134,7 +148,7 @@ test("POST update: 409 profile-not-found when no profile locatable", async () =>
 test("POST update: succeeds and refreshes current version", async () => {
   const profile = tempProfile({ spec: "^0.3.1" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch, spawnImpl: okSpawn });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 200);
@@ -157,7 +171,7 @@ test("POST update: 409 already-running while another update is in flight", async
     return child; // never settles until the test emits close
   };
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch, spawnImpl: hangingSpawn });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const first = handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, fakeRes());
   await new Promise((r) => setTimeout(r, 20)); // let updating=true take effect
   const res2 = fakeRes();
@@ -172,7 +186,7 @@ test("POST update: 409 already-running while another update is in flight", async
 test("POST update: 405 for non-POST methods", async () => {
   const profile = tempProfile({ spec: "^0.3.1" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
-  await new Promise((r) => setTimeout(r, 50)); // wait for the startup registry check to settle
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "GET" }, res);
   assert.equal(res.calls[0][1], 405);
@@ -182,7 +196,7 @@ test("POST update: 405 for non-POST methods", async () => {
 test("GET status: 405 for non-GET methods", async () => {
   const profile = tempProfile({ spec: "^0.3.1" });
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch });
-  await new Promise((r) => setTimeout(r, 50));
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 405);
@@ -204,7 +218,7 @@ test("POST update: 500 with pnpm-error shape on pnpm failure", async () => {
     return child;
   };
   const { handlers } = makeContext({ config: { update: { profileDir: profile } }, fetchImpl: okFetch, spawnImpl: failingSpawn });
-  await new Promise((r) => setTimeout(r, 50));
+  await waitForStatus(handlers);
   const res = fakeRes();
   await handlers[UPDATE_ROUTE]({ url: UPDATE_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 500);

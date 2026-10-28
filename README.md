@@ -22,14 +22,16 @@ DSH Web GUI 插件（Web 与桌面端通用）：侧边栏底部「Git 树」按
 ### 桌面端（DeepSeek Harness.app）
 
 1. 侧边栏打开「插件」页 → 安装，填入下面任一地址：
-   - npm：`@kulebbb/dsh-git-tree`
-   - GitHub：`https://github.com/kulebbb/dsh-git-tree`（改动未发版时用这个）
+   - GitHub：`https://github.com/kulebbb/dsh-git-tree`（推荐；改动未发版时也用这个）
+   - npm：`@kulebbb/dsh-git-tree`（**0.5.0 发布后**才有 bundle 声明；之前发 npm 上还是 0.4.0，会被插件页以「不是组合包」拒绝）
 2. 安装完成后按提示**重启 DeepSeek Harness**（桌面端没有 HMR，重启后新插件才生效）。
 3. 侧边栏底部出现「Git 树」按钮。
 
 也可以用 agent 的 `plugin_manager` 工具安装：`action: install_bundle`，`target` 填上面的地址。
 
-> 桌面端的 profile 由 App 独占管理，请不要自己往 `~/.dsh/profiles/desktop` 里 `pnpm add`，也别用 CLI 启停它；更新和卸载都走「插件」页。
+**更新与卸载**：桌面端没有「更新」按钮，更新＝在「插件」页重新安装新版本（插件管理器会覆盖安装并提示重启）；卸载也在「插件」页，若提示需要先停止 DSH，按提示退出 App 后再操作。
+
+> 桌面端的 profile 由 App 独占管理，请不要自己往 `~/.dsh/profiles/desktop` 里 `pnpm add`，也别用 CLI 启停它；安装、更新、卸载都走「插件」页。
 
 ### Web（`dsh web`）
 
@@ -52,6 +54,27 @@ pnpm add @kulebbb/dsh-git-tree
 
 重启 `dsh web`。不需要再往 `cordis.patch.yml` 写任何东西——bundle patch 已经带了 `git-tree` 这一行。
 
+### 从 v0.4.0（手工改 patch 的装法）升级
+
+v0.4.0 及更早的安装方式是「`pnpm add` + 手工往 profile 的 `cordis.patch.yml` 写一条 `insert` 行」。升级到 0.5.0 的 bundle 之前，**先删掉那条旧行**，否则同一 id 会有两条来源（profile patch 与 bundle 各一条）：启动不会失败，但插件页的启用/禁用会归因到错误的层，卸载时还可能报「组合包正在使用」。
+
+```yaml
+# ~/.dsh/profiles/<profile>/cordis.patch.yml —— 删除这一段
+- insert:
+    - id: git-tree
+      name: '@kulebbb/dsh-git-tree'
+```
+
+然后按上面的方式在「插件」页安装 0.5.0，并确认只剩一条 `git-tree` 行：
+
+```sh
+dsh --profile <profile> --dump-config | grep -A1 "id: git-tree"
+```
+
+（桌面端 profile 不能对 CLI 执行该命令，装完在「插件」页的插件列表里确认只有一条 Git 树条目即可。）
+
+另注：v0.4.0 自带的「更新」按钮只会把 0.5.0 装成普通依赖，不会写进 `dsh.profile.bundles`——所以从旧版升级请按本节走，不要点旧版的更新按钮。
+
 ## 🤖 Agent 一键安装
 
 把下面**任一段**提示词（中文或英文）复制发给你的 AI 助手（DeepSeek / Claude / Cursor 等），它会自动完成安装。如需同时安装 [dsh-vision](https://github.com/kulebbb/dsh-vision)，把两个插件的提示词一起发给助手，它会依次完成。
@@ -65,9 +88,10 @@ pnpm add @kulebbb/dsh-git-tree
 @kulebbb/dsh-git-tree 是一个 bundle：自带 cordis.patch.yml，会插入一个侧边栏底部的「Git 树」按钮，点击后全屏展示当前工作区的 git 提交/分支图。无第三方运行时依赖。
 
 【安装步骤】
-1. 优先使用 plugin_manager 工具的 install_bundle，target 填 @kulebbb/dsh-git-tree（未发版时填 https://github.com/kulebbb/dsh-git-tree）。
-2. 如果没有 plugin_manager 工具或调用被拒绝，告诉我用侧边栏「插件」页安装，并说明步骤。
-3. 不要手工编辑 profile 的 package.json 或 cordis.patch.yml，也不要在 profile 目录里跑 pnpm——桌面端的 profile 由 App 独占管理。
+1. 先检查 profile 的 cordis.patch.yml：如果里面已有 id 为 git-tree 的插入行（v0.4.0 的老装法），先删掉那段再继续，否则同一 id 会有两条来源。
+2. 优先使用 plugin_manager 工具的 install_bundle，target 填 @kulebbb/dsh-git-tree（未发版时填 https://github.com/kulebbb/dsh-git-tree）。
+3. 如果没有 plugin_manager 工具或调用被拒绝，告诉我用侧边栏「插件」页安装，并说明步骤。
+4. 不要手工编辑 profile 的 package.json 或 cordis.patch.yml，也不要在 profile 目录里跑 pnpm——桌面端的 profile 由 App 独占管理。
 
 【验证】
 - 安装结果里 application 为 applied 或 restart-required；restart-required 时需要重启 DSH（桌面端重启 App，命令行重启 dsh web）。
@@ -87,9 +111,10 @@ You are an installation assistant. Install the DSH (DeepSeek Harness) plugin @ku
 @kulebbb/dsh-git-tree is a bundle: it ships its own cordis.patch.yml and inserts a "Git tree" button at the bottom of the sidebar that opens a fullscreen commit/branch graph of the current workspace. No third-party runtime dependencies.
 
 [Install]
-1. Prefer the plugin_manager tool with action install_bundle and target @kulebbb/dsh-git-tree (use https://github.com/kulebbb/dsh-git-tree for unreleased changes).
-2. If plugin_manager is unavailable or refused, tell me to install it from the sidebar Plugins page and give the steps.
-3. Do not hand-edit the profile's package.json or cordis.patch.yml, and do not run pnpm in the profile directory — the desktop app owns its profile.
+1. First check the profile's cordis.patch.yml: if it already has an insert row with id git-tree (the v0.4.0 setup), delete that block first — otherwise the same id comes from two layers.
+2. Prefer the plugin_manager tool with action install_bundle and target @kulebbb/dsh-git-tree (use https://github.com/kulebbb/dsh-git-tree for unreleased changes).
+3. If plugin_manager is unavailable or refused, tell me to install it from the sidebar Plugins page and give the steps.
+4. Do not hand-edit the profile's package.json or cordis.patch.yml, and do not run pnpm in the profile directory — the desktop app owns its profile.
 
 [Verify]
 - The install result reports application applied or restart-required; when it is restart-required, restart DSH (restart the app on desktop, restart dsh web with the CLI).
@@ -109,7 +134,7 @@ You are an installation assistant. Install the DSH (DeepSeek Harness) plugin @ku
 - 点击「更新」：插件自动在 profile 目录执行 `pnpm add @kulebbb/dsh-git-tree@latest`，成功后横幅变为「已安装，重启 dsh web 后生效」；重启后新版本生效。
 - 更新失败时横幅显示错误信息与可折叠的 pnpm 输出，可重试。
 - 开发安装（`link:`/`file:` spec）不会出现更新按钮，只提示手动更新源码——避免破坏本地链接。
-- **桌面端只提示、不提供按钮**：桌面 profile 由 App 独占管理，插件会在横幅里显示「新版本 {latest}（当前 {current}），请在 DSH 侧边栏「插件」页更新」，更新动作交给 App；对 `/git-tree/update` 的调用会返回 `409 desktop-managed`。
+- **桌面端只提示、不提供按钮**：桌面 profile 由 App 独占管理，插件会在横幅里显示「新版本 {latest}（当前 {current}），请在 DSH 侧边栏『插件』页重装以更新」，更新动作交给 App（插件页对非官方插件是「重装新版本」）；桌面端对 `/git-tree/update` 的一律返回 `409 desktop-managed`（排在 dev / profile-not-found 之前，所以桌面端拿到的一定是这条）。
 - 横幅可 ✕ 关闭（本次页面会话内不再显示，角标同步消失）。
 
 可选配置（`cordis.patch.yml` 该插件条目的 `config`，通常不需要）：当插件无法自动定位 profile 目录时，显式指定：
@@ -153,7 +178,7 @@ payload 结构：`commits[].body`（提交正文，可能为空字符串）、`c
 ## 测试
 
 ```sh
-cd plugins/dsh-git-tree && node --test
+node --test          # 在仓库根目录；零依赖，用系统 node 运行即可
 ```
 
 ## License
