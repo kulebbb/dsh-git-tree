@@ -21,7 +21,7 @@ const exports_ = loaded.factory((spec) => {
   if (spec === "react") return fakeReact;
   throw new Error(`unexpected require: ${spec}`);
 });
-const { layoutGraph, buildEdgePaths, computeLabelXs, branchColors, pickFreeLane, hashSuffixOf, rowTextOf } = exports_;
+const { layoutGraph, buildEdgePaths, computeLabelXs, branchColors, pickFreeLane, hashSuffixOf, rowTextOf, refTextOf } = exports_;
 
 test("layoutGraph: linear history stays on one lane", () => {
   const commits = [
@@ -208,6 +208,12 @@ test("hashSuffixOf: GitHub-style trailing short hash", () => {
 test("hashSuffixOf: falls back to the first 7 chars of the full hash", () => {
   const c = { hash: "0123456789abcdef".repeat(3).slice(0, 40) };
   assert.equal(hashSuffixOf(c), " (0123456)");
+});
+
+test("refTextOf: joins refs and strips the tag prefix", () => {
+  const c = { refs: ["HEAD -> main", "origin/main", "tag: v1.0"], subject: "feat: merge" };
+  assert.equal(refTextOf(c), "HEAD -> main origin/main v1.0");
+  assert.equal(refTextOf({ refs: [], subject: "x" }), "");
 });
 
 test("rowTextOf: empty refs and subject still carry the hash suffix", () => {

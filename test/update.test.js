@@ -22,20 +22,9 @@ const fakeReact = {
 await import(new URL("../lib/client.js", import.meta.url));
 const loaded = globalThis.__DSH_GT_LOADED;
 assert.ok(loaded, "bundle must call __ModuleLoader__.load");
-const { bannerKind, showBadge, dictionaries } = loaded.factory((spec) => {
+const { bannerKind, dictionaries } = loaded.factory((spec) => {
   if (spec === "react") return fakeReact;
   throw new Error(`unexpected require: ${spec}`);
-});
-
-test("showBadge: only actionable or desktop-managed updates earn the dot", () => {
-  assert.equal(showBadge(null, false), false);
-  assert.equal(showBadge({ latest: "0.4.0", updateAvailable: true }, false), true);
-  assert.equal(showBadge({ latest: "0.4.0", updateAvailable: true }, true), false);
-  assert.equal(showBadge({ latest: "0.4.0", updateAvailable: false, desktop: true, newer: true, dev: false }, false), true);
-  // A source install on desktop shows the muted dev banner, so no dot either.
-  assert.equal(showBadge({ latest: "0.4.0", updateAvailable: false, desktop: true, newer: true, dev: true }, false), false);
-  assert.equal(showBadge({ latest: "0.4.0", updateAvailable: false, desktop: true, newer: false, dev: false }, false), false);
-  assert.equal(showBadge({ latest: "0.4.0", updateAvailable: false, dev: false }, false), false);
 });
 
 test("dictionaries: zh and en define the same keys", () => {
