@@ -1,7 +1,7 @@
 {
   "name": "@kulebbb/dsh-git-tree",
-  "version": "0.6.0",
-  "description": "Visual git commit/branch graph as a right-sidebar tab in DSH (desktop and web)",
+  "version": "0.7.0",
+  "description": "Visual git commit/branch graph as a right-sidebar tab in DSH Desktop",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

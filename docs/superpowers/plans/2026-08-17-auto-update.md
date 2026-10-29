@@ -1,5 +1,10 @@
 # 插件自动更新（方案 A）实现计划
 
+> **历史文档（2026-08）**：本计划对应 v0.4.0 时代的实现（含 pnpm 一键更新与 `POST /git-tree/update`），
+> 其中 Task 4（pnpm 执行器）与 Task 5 中的更新路由/面板更新按钮已在 **v0.7.0** 随「只支持桌面端」一并移除；
+> 启动检查与 `GET /git-tree/update/status` 仍保留。
+> 保留本文仅供追溯；现行设计见 `docs/decisions/2026-10-29-desktop-only.md` 与 `README.md`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** 为 `@kulebbb/dsh-git-tree` 增加「启动时静默检查 npm 新版本 + 面板内非侵入式横幅 + 一键 pnpm 更新」的自动更新能力（方案 A，设计文档：`docs/superpowers/specs/2026-08-17-auto-update-design.md`）。

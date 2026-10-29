@@ -1,6 +1,6 @@
-# Git tree: a right-sidebar tab type that renders the commit/branch graph of the
-# current session's project. The client half comes from this same package, so
-# the bundle inserts one row only.
+# Git tree: a right-sidebar tab type for the DSH desktop app that renders the
+# commit/branch graph of the current session's project. The client half comes
+# from this same package, so the bundle inserts one row only.
 - insert:
     - id: git-tree
       name: '@kulebbb/dsh-git-tree'
