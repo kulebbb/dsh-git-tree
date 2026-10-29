@@ -106,18 +106,18 @@ test("shortHashOf: trims to 7 chars and guards falsy input", () => {
 // clamped to the measured container (or, when unmeasured, to the panel's max
 // content width) — never to the raw natural width of the longest row.
 test("computeSvgWidth: clamps an overflowing natural width to the viewport", () => {
-  assert.equal(computeSvgWidth(5000, 1000), 968); // 1000 - 32 scroll padding
-  assert.equal(computeSvgWidth(5000, 500), 468);
+  assert.equal(computeSvgWidth(5000, 1000), 976); // 1000 - 24 scroll padding
+  assert.equal(computeSvgWidth(5000, 500), 476);
 });
 
 test("computeSvgWidth: keeps the natural width when it already fits", () => {
   assert.equal(computeSvgWidth(300, 1000), 300);
-  assert.equal(computeSvgWidth(928, 928), 896); // exactly the content width minus padding
+  assert.equal(computeSvgWidth(928, 928), 904); // exactly the content width minus padding
 });
 
 test("computeSvgWidth: unmeasured viewport falls back to the panel max, never the raw width", () => {
   // This is the invariant that failed when the scroll container ref was not
   // attached: viewportW stayed 0 and svgW became the untruncated natural width.
-  assert.equal(computeSvgWidth(5000, 0), 928); // 960 panel max - 32 padding
+  assert.equal(computeSvgWidth(5000, 0), 936); // 960 pane max - 24 padding
   assert.equal(computeSvgWidth(500, 0), 500);
 });
