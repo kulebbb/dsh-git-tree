@@ -29,7 +29,7 @@ DSH 右侧栏插件（Web 与桌面端通用）：在右侧栏的标签页里用
 
 1. 侧边栏打开「插件」页 → 安装，填入下面任一地址：
    - GitHub：`https://github.com/kulebbb/dsh-git-tree`（推荐；改动未发版时也用这个）
-   - npm：`@kulebbb/dsh-git-tree`（**0.5.0 发布后**才有 bundle 声明；之前发 npm 上还是 0.4.0，会被插件页以「不是组合包」拒绝）
+   - npm：`@kulebbb/dsh-git-tree`（**0.5.0 起**才有 bundle 声明；0.4.0 及更早会被插件页以「不是组合包」拒绝）
 2. 安装完成后按提示**重启 DeepSeek Harness**（桌面端没有 HMR，重启后新插件才生效）。
 3. 重启后展开右侧栏 → 点「＋」打开开始页 → 点「Git 提交图」卡片。
 
@@ -71,7 +71,7 @@ v0.4.0 及更早的安装方式是「`pnpm add` + 手工往 profile 的 `cordis.
       name: '@kulebbb/dsh-git-tree'
 ```
 
-然后按上面的方式在「插件」页安装 0.5.0，并确认只剩一条 `git-tree` 行：
+然后按上面的方式在「插件」页安装 0.6.0，并确认只剩一条 `git-tree` 行：
 
 ```sh
 dsh --profile <profile> --dump-config | grep -A1 "id: git-tree"
@@ -140,7 +140,7 @@ You are an installation assistant. Install the DSH (DeepSeek Harness) plugin @ku
 - 更新失败时横幅显示错误信息与可折叠的 pnpm 输出，可重试。
 - 开发安装（`link:`/`file:` spec）不会出现更新按钮，只提示手动更新源码——避免破坏本地链接。
 - **桌面端只提示、不提供按钮**：桌面 profile 由 App 独占管理，插件会在横幅里显示「新版本 {latest}（当前 {current}），请在 DSH 侧边栏『插件』页重装以更新」，更新动作交给 App（插件页对非官方插件是「重装新版本」）；桌面端对 `/git-tree/update` 的一律返回 `409 desktop-managed`（排在 dev / profile-not-found 之前，所以桌面端拿到的一定是这条）。
-- 横幅可 ✕ 关闭（本次页面会话内不再显示）。
+- 横幅可 ✕ 关闭（关闭状态只保留在当前面板实例内，切走再回来会重新检查）。
 
 可选配置（`cordis.patch.yml` 该插件条目的 `config`，通常不需要）：当插件无法自动定位 profile 目录时，显式指定：
 
@@ -161,14 +161,17 @@ commits[].date 为作者时间（ISO 8601，%aI），前端在每行提交说明
 
 提交行文本按像素宽度测量后渲染，**超长 subject 自动以 "…" 截断**，SVG 宽度封顶为面板可视内容宽度，**任何情况下都不会出现横向滚动条**（长文案只截断，不撑宽）。悬停任意提交行时弹出自定义 tooltip，展示**完整提交信息**（完整 subject + 提交正文 body + 哈希 + 作者 + 本地时间 + refs）与**代码变动量**（`1 file changed, 24 insertions(+), 16 deletions(-)` 风格，来自 `git log --shortstat`；无变动的 merge 提交不显示该行）。
 
-### 本地 / 云端 HEAD
+### 状态条与本地 / 云端 HEAD
 
-面板头部常驻状态条展示：
+面板顶部常驻一行状态条：
 
-- `本地 <branch> → <7位哈希>`（HEAD 游离时显示「本地 HEAD（游离）→ <哈希>」）
-- `云端 <upstream> → <7位哈希> ↑n ↓m`：云端取当前分支的 `@{upstream}`，未配置上游时回退到 `origin/<分支名>`，均不存在时显示「云端：未推送」；↑n ↓m 为领先/落后提交数（`git rev-list --left-right --count HEAD...<ref>`），两端同步时省略。
+- 项目名（当前会话工作目录的目录名，悬停可看完整路径）
+- `⑂ <分支名>`：HEAD 游离时显示「游离」
+- `↑n ↓m`：领先/落后提交数（`git rev-list --left-right --count HEAD...<ref>`），云端取当前分支的 `@{upstream}`，未配置时回退 `origin/<分支名>`，两端同步时省略
+- 「本地 <7位哈希>」「云端 <7位哈希>」两个小色块；没有上游时云端显示「未推送」
+- 右侧两个按钮：搜索（展开一行过滤框，Esc 收起）与刷新
 
-图上同步标记：本地 HEAD 提交圆点带绿色实线环 + 「本地」角标，云端 HEAD 提交圆点带蓝色虚线环 + 「云端」角标（本地与云端指向同一提交时两个角标并排显示）。
+图上同步标记：本地 HEAD 提交圆点是**绿色空心环**，云端 HEAD 提交圆点是蓝色虚线环；宽栏时行尾追加「本地」「云端」小角标，窄栏隐藏（状态条已给出两份哈希）。
 
 payload 结构：`commits[].body`（提交正文，可能为空字符串）、`commits[].stats`（`{files, insertions, deletions}`，无变动的提交为 `null`）、`repo.localHead`（`{hash, branch|null}`）、`repo.remoteHead`（`{ref, hash, ahead, behind}|null`）。
 
