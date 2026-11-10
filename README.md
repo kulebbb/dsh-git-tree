@@ -1,5 +1,7 @@
 # @kulebbb/dsh-git-tree
 
+中文 · [English](README.en.md)
+
 DSH 桌面端（DeepSeek Harness.app）右侧栏插件：在右侧栏的标签页里用图形展示**当前会话所属项目**的 git 提交/分支 DAG。它和文件、浏览器、终端是同一套 tab 机制——展开右侧栏 → 点「＋」打开开始页 → 点「Git 提交图」卡片，或按 `⌘⇧G`（Windows / Linux 为 `Ctrl+Shift+G`）。
 
 项目不需要选择：面板直接跟随会话的工作目录，切换会话即切换项目；每个会话的右侧栏布局相互独立（在哪个会话打开过，就在哪个会话里出现）。
@@ -13,6 +15,10 @@ DSH 桌面端（DeepSeek Harness.app）右侧栏插件：在右侧栏的标签�
 本包是一个 **bundle（组合包）**：`dsh.bundle.patch` 指向自带的 `cordis.patch.yml`，因此可以被 DSH 桌面端的「插件」页直接安装、启用和卸载，不需要手工编辑 profile 的 `cordis.patch.yml`。
 
 版本脉络：v0.5.0 起改为 bundle 分发；v0.6.0 起入口从「左侧栏按钮 + 全屏弹层」改为**右侧栏 tab 类型**并删除工作区选择器；v0.7.0 起只保留桌面端，移除面板内的一键更新与 `POST /git-tree/update`；v0.7.1 更新版权人与上架元数据，不改变运行行为。取舍与影响见 `docs/decisions/2026-10-29-desktop-only.md`。
+
+## 截图
+
+![DSH 桌面端右侧栏中的 Git 提交图](assets/sidebar-graph.png)
 
 ## 结构
 
