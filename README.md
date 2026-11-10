@@ -29,17 +29,11 @@ DSH 桌面端（DeepSeek Harness.app）右侧栏插件：在右侧栏的标签�
 
 ## 安装（桌面端）
 
-官方从 Git 安装的命令是：
-
-```sh
-dsh plugin --profile desktop add github:kulebbb/dsh-git-tree
-```
-
-要钉住一次提交，把地址写成 `github:kulebbb/dsh-git-tree#<40位commit>`。仓库里的 `lib/` 就是运行入口（已提交的 JavaScript，不是待编译的 TypeScript），没有 `build` / `prepare`。从 Git 安装不会编译，也不需要在 profile 的 `pnpm-workspace.yaml` 里为本包打开 `allowBuilds`。
+从 Git 安装的地址是 `github:kulebbb/dsh-git-tree`。要钉住一次提交，写成 `github:kulebbb/dsh-git-tree#<40位commit>`。仓库里的 `lib/` 就是运行入口（已提交的 JavaScript，不是待编译的 TypeScript），没有 `build` / `prepare`。从 Git 安装不会编译，也不需要在 profile 的 `pnpm-workspace.yaml` 里为本包打开 `allowBuilds`。
 
 npm 上的公开包名是 `@kulebbb/dsh-git-tree`（维护者即本仓库；**0.7.0 起**为桌面端专用版本，0.4.0 及更早会被插件页以「不是组合包」拒绝）。无作用域的 `dsh-git-tree` 是另一个作者的包，不要装那个。
 
-桌面端 App 独占 `desktop` profile。App 还开着时不要执行上面的命令，也不要往 `~/.dsh/profiles/desktop` 里 `pnpm add`，更不要用 CLI 启停 App。日常安装、更新、卸载走「插件」页：
+桌面端 App 独占名为 `desktop` 的 profile。独立安装的 `dsh` CLI（已在 `@deepseek-ai/dsh@0.2.2-rc.1` 上核对）遇到这个名字会直接拒绝：`profile "desktop" is managed exclusively by the Electron application`。不要往 `~/.dsh/profiles/desktop` 里 `pnpm add`，也不要用 CLI 启停 App。安装、更新、卸载走「插件」页：
 
 1. 侧边栏打开「插件」页 → 安装，填入下面任一地址：
    - Git：`github:kulebbb/dsh-git-tree`（也可粘贴 `https://github.com/kulebbb/dsh-git-tree`；改动未发版时用这个）
@@ -47,7 +41,11 @@ npm 上的公开包名是 `@kulebbb/dsh-git-tree`（维护者即本仓库；**0.
 2. 安装完成后按提示**重启 DeepSeek Harness**（桌面端没有 HMR，重启后新插件才生效）。
 3. 重启后展开右侧栏 → 点「＋」打开开始页 → 点「Git 提交图」卡片。
 
-只有在完全退出 App（含托盘）之后，才可以用桌面端自带的 `dsh` 执行上面的 `dsh plugin --profile desktop add`。不要用另外安装的 CLI 去改 App 正在使用的 profile。
+自己的、名字不是 `desktop` 的 profile，可以用官方 CLI 装进组合层（界面仍然只在桌面端右侧栏出现，`dsh web` 不支持本插件）：
+
+```sh
+dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
+```
 
 也可以用 agent 的 `plugin_manager` 工具安装：`action: install_bundle`，`target` 填 `github:kulebbb/dsh-git-tree` 或 `@kulebbb/dsh-git-tree`。
 

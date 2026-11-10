@@ -35,6 +35,12 @@
     },
     "client": {
       "platform": "web"
+    },
+    "marketplace": {
+      "profiles": ["desktop"],
+      "requiresBuildApproval": false,
+      "requiresRestart": true,
+      "manualSteps": false
     }
   },
   "license": "MIT"
