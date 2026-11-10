@@ -12,7 +12,7 @@ DSH 桌面端（DeepSeek Harness.app）右侧栏插件：在右侧栏的标签�
 
 本包是一个 **bundle（组合包）**：`dsh.bundle.patch` 指向自带的 `cordis.patch.yml`，因此可以被 DSH 桌面端的「插件」页直接安装、启用和卸载，不需要手工编辑 profile 的 `cordis.patch.yml`。
 
-版本脉络：v0.5.0 起改为 bundle 分发；v0.6.0 起入口从「左侧栏按钮 + 全屏弹层」改为**右侧栏 tab 类型**并删除工作区选择器；v0.7.0 起只保留桌面端，移除面板内的一键更新与 `POST /git-tree/update`。取舍与影响见 `docs/decisions/2026-10-29-desktop-only.md`。
+版本脉络：v0.5.0 起改为 bundle 分发；v0.6.0 起入口从「左侧栏按钮 + 全屏弹层」改为**右侧栏 tab 类型**并删除工作区选择器；v0.7.0 起只保留桌面端，移除面板内的一键更新与 `POST /git-tree/update`；v0.7.1 更新版权人与上架元数据，不改变运行行为。取舍与影响见 `docs/decisions/2026-10-29-desktop-only.md`。
 
 ## 结构
 
@@ -53,7 +53,7 @@ dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
 
 ## 从旧版本升级
 
-- **v0.4.0（手工改 patch 的装法）**：先删掉旧的那条 `insert` 行，再在「插件」页安装 0.7.0。否则同一 id 会有两条来源（profile patch 与 bundle 各一条）：启动不会失败，但插件页的启用/禁用会归因到错误的层，卸载时还可能报「组合包正在使用」。
+- **v0.4.0（手工改 patch 的装法）**：先删掉旧的那条 `insert` 行，再在「插件」页安装 0.7.1。否则同一 id 会有两条来源（profile patch 与 bundle 各一条）：启动不会失败，但插件页的启用/禁用会归因到错误的层，卸载时还可能报「组合包正在使用」。
 
   ```yaml
   # ~/.dsh/profiles/desktop/cordis.patch.yml —— 删除这一段

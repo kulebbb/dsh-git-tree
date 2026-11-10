@@ -1,6 +1,6 @@
 {
   "name": "@kulebbb/dsh-git-tree",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Visual git commit/branch graph as a right-sidebar tab in DSH Desktop",
   "type": "module",
   "main": "lib/index.js",
@@ -22,7 +22,7 @@
     "type": "git",
     "url": "git+https://github.com/kulebbb/dsh-git-tree.git"
   },
-  "author": "kulebbb",
+  "author": "Liang",
   "homepage": "https://github.com/kulebbb/dsh-git-tree",
   "keywords": ["deepseek-harness", "dsh", "git", "desktop"],
   "icon": "./icon.svg",
