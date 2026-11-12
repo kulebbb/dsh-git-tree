@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { apply, GRAPH_ROUTE, UPDATE_STATUS_ROUTE } from "../lib/index.js";
+
+const SESSION = "sess-1";
 
 const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
 
@@ -16,23 +18,54 @@ function fakeRes() {
   };
 }
 
-function responseOf(res) {
+function endBody(res) {
   const end = res.calls.find(([kind]) => kind === "end");
-  return end ? JSON.parse(end[1]) : null;
+  return end ? end[1] : null;
+}
+
+function responseOf(res) {
+  const body = endBody(res);
+  return body ? JSON.parse(body) : null;
 }
 
 /** Mount the plugin with a stubbed registry fetch and return the route handlers. */
-function makeContext({ fetchImpl } = {}) {
+function makeContext({ fetchImpl, admit, workspaces, sessions } = {}) {
   const handlers = {};
   const ctx = {
     webServer: {
       register: ({ path, handler }) => { handlers[path] = handler; return () => {}; }
     },
     logger: { warn: () => {}, debug: () => {} },
-    effect: (fn) => { const cleanup = fn(); if (typeof cleanup === "function") cleanup(); }
+    effect: (fn) => { const cleanup = fn(); if (typeof cleanup === "function") cleanup(); },
+    connection: {
+      admit: admit ?? (() => ({ peer: { id: "peer" } }))
+    },
+    workspaceRegistry: {
+      list: () => workspaces ?? []
+    },
+    get(name) {
+      if (name === "sessions") return sessions;
+      return undefined;
+    }
   };
   apply(ctx, {}, { fetchImpl });
   return { handlers };
+}
+
+function graphUrl({ cwd, session = SESSION } = {}) {
+  const params = new URLSearchParams();
+  if (session != null) params.set("session", session);
+  if (cwd !== undefined) params.set("cwd", cwd);
+  const query = params.toString();
+  return query ? `${GRAPH_ROUTE}?${query}` : GRAPH_ROUTE;
+}
+
+function workspaceContext(root, extra = {}) {
+  return makeContext({
+    fetchImpl: okFetch,
+    workspaces: [{ path: root, sessionIds: [SESSION] }],
+    ...extra
+  });
 }
 
 const okFetch = async () => ({ ok: true, json: async () => ({ version: "9.9.9" }) });
@@ -90,34 +123,142 @@ test("GET status: 405 for non-GET methods", async () => {
   assert.equal(responseOf(res).error.code, "method-not-allowed");
 });
 
-test("graph route: rejects a missing or relative cwd with 400 invalid-cwd", async () => {
-  const { handlers } = makeContext({ fetchImpl: okFetch });
-  for (const url of [`${GRAPH_ROUTE}`, `${GRAPH_ROUTE}?cwd=relative/dir`]) {
+test("routes: host admission rejection is returned before the handler runs", async () => {
+  const root = mkdtempSync(join(tmpdir(), "gt-index-"));
+  try {
+    for (const rejection of [401, 403]) {
+      const { handlers } = workspaceContext(root, {
+        admit: () => ({ rejection })
+      });
+      const expectedBody = rejection === 401 ? "unauthorized" : "forbidden";
+      for (const route of [GRAPH_ROUTE, UPDATE_STATUS_ROUTE]) {
+        const res = fakeRes();
+        const url = route === GRAPH_ROUTE ? graphUrl({ cwd: root }) : route;
+        await handlers[route]({ url, method: "GET" }, res);
+        assert.equal(res.calls[0][1], rejection, route);
+        assert.equal(endBody(res), expectedBody, route);
+      }
+    }
+    const denied = makeContext({
+      fetchImpl: okFetch,
+      admit: () => { throw new Error("admit exploded"); },
+      workspaces: [{ path: root, sessionIds: [SESSION] }]
+    });
     const res = fakeRes();
-    await handlers[GRAPH_ROUTE]({ url }, res);
-    assert.equal(res.calls[0][1], 400);
-    assert.equal(responseOf(res).error.code, "invalid-cwd");
+    await denied.handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "POST" }, res);
+    assert.equal(res.calls[0][1], 401);
+    assert.equal(endBody(res), "unauthorized");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("graph route: rejects a non-existent absolute directory with 400 invalid-cwd", async () => {
-  const { handlers } = makeContext({ fetchImpl: okFetch });
-  const missing = join(mkdtempSync(join(tmpdir(), "gt-index-")), "not-there");
-  const res = fakeRes();
-  await handlers[GRAPH_ROUTE]({ url: `${GRAPH_ROUTE}?cwd=${encodeURIComponent(missing)}` }, res);
-  assert.equal(res.calls[0][1], 400);
-  assert.equal(responseOf(res).error.code, "invalid-cwd");
-  rmSync(missing, { recursive: true, force: true });
+test("graph route: rejects a cwd the host did not bind to this session", async () => {
+  const root = mkdtempSync(join(tmpdir(), "gt-index-"));
+  try {
+    const { handlers } = workspaceContext(root);
+    const outside = mkdtempSync(join(tmpdir(), "gt-index-"));
+    try {
+      for (const url of [
+        graphUrl({ session: null }),
+        graphUrl({ cwd: outside }),
+        graphUrl({ cwd: join(root, "missing") }),
+        graphUrl({ cwd: "missing-rel" }),
+        `${GRAPH_ROUTE}?cwd=${encodeURIComponent(root)}`
+      ]) {
+        const res = fakeRes();
+        await handlers[GRAPH_ROUTE]({ url, method: "GET" }, res);
+        assert.equal(res.calls[0][1], 400, url);
+        assert.equal(responseOf(res).error.code, "invalid-cwd", url);
+      }
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
-test("graph route: a plain directory maps to the 200 + not-a-git-repo soft error", async () => {
-  const { handlers } = makeContext({ fetchImpl: okFetch });
-  const dir = mkdtempSync(join(tmpdir(), "gt-index-"));
-  const res = fakeRes();
-  await handlers[GRAPH_ROUTE]({ url: `${GRAPH_ROUTE}?cwd=${encodeURIComponent(dir)}` }, res);
-  assert.equal(res.calls[0][1], 200);
-  const body = responseOf(res);
-  assert.equal(body.ok, false);
-  assert.equal(body.error.code, "not-a-git-repo");
-  rmSync(dir, { recursive: true, force: true });
+test("graph route: rejects cwd that escapes the workspace via .., a sibling prefix, or a symlink", async () => {
+  const parent = mkdtempSync(join(tmpdir(), "gt-index-"));
+  try {
+    const root = join(parent, "b");
+    const sibling = join(parent, "bc");
+    const outside = join(parent, "outside");
+    const nested = join(root, "sub");
+    mkdirSync(root);
+    mkdirSync(sibling);
+    mkdirSync(outside);
+    mkdirSync(nested);
+    symlinkSync(outside, join(root, "escape"));
+    const { handlers } = workspaceContext(root);
+    for (const cwd of [
+      outside,
+      sibling,
+      "..",
+      join(root, ".."),
+      join(nested, "..", ".."),
+      join(root, "escape"),
+      "escape",
+      "sub/../../outside"
+    ]) {
+      const res = fakeRes();
+      await handlers[GRAPH_ROUTE]({ url: graphUrl({ cwd }), method: "GET" }, res);
+      assert.equal(res.calls[0][1], 400, cwd);
+      assert.equal(responseOf(res).error.code, "invalid-cwd", cwd);
+    }
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("graph route: accepts the workspace root, a child directory, and an in-workspace symlink", async () => {
+  const root = mkdtempSync(join(tmpdir(), "gt-index-"));
+  try {
+    const child = join(root, "child");
+    const linked = join(root, "linked");
+    mkdirSync(child);
+    mkdirSync(linked);
+    symlinkSync(linked, join(root, "inside-link"));
+    symlinkSync(root, join(root, "root-link"));
+    const { handlers } = workspaceContext(root);
+    for (const cwd of [undefined, root, child, "child", "child/..", "inside-link", "root-link", "."]) {
+      const res = fakeRes();
+      await handlers[GRAPH_ROUTE]({ url: graphUrl({ cwd }), method: "GET" }, res);
+      assert.equal(res.calls[0][1], 200, String(cwd));
+      const body = responseOf(res);
+      assert.equal(body.ok, false, String(cwd));
+      assert.equal(body.error.code, "not-a-git-repo", String(cwd));
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("graph route: session header cwd is the root when the registry has no membership", async () => {
+  const root = mkdtempSync(join(tmpdir(), "gt-index-"));
+  const outside = mkdtempSync(join(tmpdir(), "gt-index-"));
+  try {
+    const { handlers } = makeContext({
+      fetchImpl: okFetch,
+      workspaces: [],
+      sessions: {
+        get(id) {
+          if (id !== SESSION) return undefined;
+          return { header: { cwd: root } };
+        }
+      }
+    });
+    const allowed = fakeRes();
+    await handlers[GRAPH_ROUTE]({ url: graphUrl(), method: "GET" }, allowed);
+    assert.equal(allowed.calls[0][1], 200);
+    assert.equal(responseOf(allowed).error.code, "not-a-git-repo");
+    const denied = fakeRes();
+    await handlers[GRAPH_ROUTE]({ url: graphUrl({ cwd: outside }), method: "GET" }, denied);
+    assert.equal(denied.calls[0][1], 400);
+    assert.equal(responseOf(denied).error.code, "invalid-cwd");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
 });
