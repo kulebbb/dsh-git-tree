@@ -14,7 +14,7 @@ DSH 桌面端（DeepSeek Harness.app）右侧栏插件：在右侧栏的标签�
 
 本包是一个 **bundle（组合包）**：`dsh.bundle.patch` 指向自带的 `cordis.patch.yml`，因此可以被 DSH 桌面端的「插件」页直接安装、启用和卸载，不需要手工编辑 profile 的 `cordis.patch.yml`。
 
-版本脉络：v0.5.0 起改为 bundle 分发；v0.6.0 起入口从「左侧栏按钮 + 全屏弹层」改为**右侧栏 tab 类型**并删除工作区选择器；v0.7.0 起只保留桌面端，移除面板内的一键更新与 `POST /git-tree/update`；v0.7.1 更新版权人与上架元数据，不改变运行行为。取舍与影响见 `docs/decisions/2026-10-29-desktop-only.md`。
+版本脉络：v0.5.0 起改为 bundle 分发；v0.6.0 起入口从「左侧栏按钮 + 全屏弹层」改为**右侧栏 tab 类型**并删除工作区选择器；v0.7.0 起只保留桌面端，移除面板内的一键更新与 `POST /git-tree/update`；v0.7.1 更新版权人与上架元数据，不改变运行行为；v0.7.2 起 `GET /git-tree/graph` 与 `GET /git-tree/update/status` 在处理前经宿主 `ctx.connection.admit()` 认证，且 graph 的 `cwd` 只能落在当前会话所属工作区之内。取舍与影响见 `docs/decisions/2026-10-29-desktop-only.md`。
 
 ## 截图
 
@@ -24,7 +24,7 @@ DSH 桌面端（DeepSeek Harness.app）右侧栏插件：在右侧栏的标签�
 
 | 文件 | 职责 |
 |---|---|
-| `lib/index.js` | Node half：在 webserver 注册 `GET /git-tree/graph?cwd=&n=` 与 `GET /git-tree/update/status`，执行 git 并返回 JSON（只读，不写 profile） |
+| `lib/index.js` | Node half：在 webserver 注册 `GET /git-tree/graph?session=&cwd=&n=` 与 `GET /git-tree/update/status`。两条路由先经 `ctx.connection.admit()`；graph 的 cwd 限制在当前会话工作区内。只读，不写 profile |
 | `lib/client.js` | Browser half：注册右侧栏 tab 类型（`git-tree`）+ 开始页卡片 + SVG 提交图（`__ModuleLoader__` bundle） |
 | `lib/git.js` / `lib/parse.js` | 进程调用与纯解析器 |
 | `lib/update.js` | 版本比较与 npm registry 最新版本查询 |
@@ -59,7 +59,7 @@ dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
 
 ## 从旧版本升级
 
-- **v0.4.0（手工改 patch 的装法）**：先删掉旧的那条 `insert` 行，再在「插件」页安装 0.7.1。否则同一 id 会有两条来源（profile patch 与 bundle 各一条）：启动不会失败，但插件页的启用/禁用会归因到错误的层，卸载时还可能报「组合包正在使用」。
+- **v0.4.0（手工改 patch 的装法）**：先删掉旧的那条 `insert` 行，再在「插件」页安装 0.7.2。否则同一 id 会有两条来源（profile patch 与 bundle 各一条）：启动不会失败，但插件页的启用/禁用会归因到错误的层，卸载时还可能报「组合包正在使用」。
 
   ```yaml
   # ~/.dsh/profiles/desktop/cordis.patch.yml —— 删除这一段
@@ -134,7 +134,7 @@ You are an installation assistant. Install the DSH (DeepSeek Harness) desktop pl
 
 ## 接口
 
-`GET /git-tree/graph?cwd=<绝对目录>&n=<1..2000>` → `{ok, repo, commits, refs}`；错误负载 `{ok:false, error:{code, message}}`，code ∈ `invalid-cwd | not-a-git-repo | git-unavailable | git-timeout | git-error | internal`。`not-a-git-repo` 返回 `200` + `ok:false`（软错误，UI 据此显示提示）；`invalid-cwd` 返回 `400`；其余错误返回 `500`。
+`GET /git-tree/graph?session=<会话 id>&cwd=<工作区内目录>&n=<1..2000>` → `{ok, repo, commits, refs}`；错误负载 `{ok:false, error:{code, message}}`，code ∈ `invalid-cwd | not-a-git-repo | git-unavailable | git-timeout | git-error | internal`。`not-a-git-repo` 返回 `200` + `ok:false`（软错误，UI 据此显示提示）；`invalid-cwd` 返回 `400`；其余错误返回 `500`。`session` 用来向宿主定位当前会话的工作区；省略 `cwd` 时用该工作区根，给出的 `cwd` 可以是绝对路径或相对工作区根的路径，但 `realpath` 之后必须落在工作区内。
 
 commits[].date 为作者时间（ISO 8601，%aI），前端在每行提交说明下方第二行按浏览器本地时区展示为 YYYY-MM-DD HH:mm。commits[].shortHash 为 7 位短哈希；每行提交说明末尾以 GitHub 风格弱化色展示（如 `feat: xxx (9259220)`），点击该行仍复制完整哈希。
 
@@ -158,9 +158,11 @@ payload 结构：`commits[].body`（提交正文，可能为空字符串）、`c
 
 `GET /git-tree/update/status` → `{ok, current, latest, newer, checkError}`。`latest` 为 `null` 表示检查失败/离线（UI 静默降级）；`newer` 表示 registry 版本确实高于当前版本。非 GET 方法返回 `405` + `error.code = method-not-allowed`。插件不提供任何安装/更新写接口。
 
+两条路由都先调用 `ctx.connection.admit(req)`。未通过时按宿主给出的状态码拒绝：`401` 正文 `unauthorized`，`403` 正文 `forbidden`，并且不会执行 git 或返回更新状态。
+
 ## 安全说明
 
-该路由接受任意 `cwd` 并在其上执行 git，属于本机开发工具。请保持 web server 绑定在回环地址（默认 `127.0.0.1`）；不要用 `--host 0.0.0.0` 暴露到网络。
+graph 只在宿主记录的当前会话工作区内执行 git：工作区根来自 `ctx.workspaceRegistry.list()` 中包含该会话的记录的 `path`；注册表没有这条会话时，回退到 `ctx.sessions.get(sessionId).header.cwd`。`cwd` 与工作区根都会做 `realpath`，结果必须等于根或位于其下（按路径边界判断，`/a/b` 不会误放行 `/a/bc`）。越界、目录不存在，或经 `..` / 符号链接逃出工作区，返回 `400` + `invalid-cwd`。请保持 web server 绑定在回环地址（默认 `127.0.0.1`）；不要用 `--host 0.0.0.0` 暴露到网络。
 
 ## 测试
 

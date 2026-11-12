@@ -14,7 +14,7 @@ Repository: <https://github.com/kulebbb/dsh-git-tree> · npm: <https://www.npmjs
 
 This package is a **bundle**: `dsh.bundle.patch` points at the shipped `cordis.patch.yml`, so the DSH desktop "Plugins" page can install, enable, and uninstall it directly — you do not need to hand-edit the profile's `cordis.patch.yml`.
 
-Version history: v0.5.0 switched to bundle distribution; v0.6.0 moved the entry point from a "left-sidebar button + fullscreen overlay" to a **right-sidebar tab type** and removed the workspace picker; v0.7.0 kept the desktop app only and removed one-click update inside the panel plus `POST /git-tree/update`; v0.7.1 updated the copyright holder and listing metadata, with no change to runtime behavior. Trade-offs and impact are documented in `docs/decisions/2026-10-29-desktop-only.md`.
+Version history: v0.5.0 switched to bundle distribution; v0.6.0 moved the entry point from a "left-sidebar button + fullscreen overlay" to a **right-sidebar tab type** and removed the workspace picker; v0.7.0 kept the desktop app only and removed one-click update inside the panel plus `POST /git-tree/update`; v0.7.1 updated the copyright holder and listing metadata, with no change to runtime behavior; v0.7.2 requires `ctx.connection.admit()` before `GET /git-tree/graph` and `GET /git-tree/update/status`, and limits graph `cwd` to the current session's workspace. Trade-offs and impact are documented in `docs/decisions/2026-10-29-desktop-only.md`.
 
 ## Screenshot
 
@@ -24,7 +24,7 @@ Version history: v0.5.0 switched to bundle distribution; v0.6.0 moved the entry 
 
 | File | Role |
 |---|---|
-| `lib/index.js` | Node half: registers `GET /git-tree/graph?cwd=&n=` and `GET /git-tree/update/status` on the webserver, runs git, and returns JSON (read-only, does not write the profile) |
+| `lib/index.js` | Node half: registers `GET /git-tree/graph?session=&cwd=&n=` and `GET /git-tree/update/status` on the webserver. Both routes call `ctx.connection.admit()` first; graph `cwd` stays inside the current session workspace. Read-only, does not write the profile |
 | `lib/client.js` | Browser half: registers the right-sidebar tab type (`git-tree`) + start-page card + SVG commit graph (`__ModuleLoader__` bundle) |
 | `lib/git.js` / `lib/parse.js` | Process invocation and a pure parser |
 | `lib/update.js` | Version comparison and npm registry latest-version lookup |
@@ -59,7 +59,7 @@ You can also install it with the agent's `plugin_manager` tool: `action: install
 
 ## Upgrading from older versions
 
-- **v0.4.0 (the hand-edited patch install)**: delete the old `insert` row first, then install 0.7.1 from the "Plugins" page. Otherwise the same id will have two sources (one from the profile patch and one from the bundle): startup will not fail, but enable/disable on the Plugins page will be attributed to the wrong layer, and uninstall may report that "the bundle is in use".
+- **v0.4.0 (the hand-edited patch install)**: delete the old `insert` row first, then install 0.7.2 from the "Plugins" page. Otherwise the same id will have two sources (one from the profile patch and one from the bundle): startup will not fail, but enable/disable on the Plugins page will be attributed to the wrong layer, and uninstall may report that "the bundle is in use".
 
   ```yaml
   # ~/.dsh/profiles/desktop/cordis.patch.yml — delete this block
@@ -134,7 +134,7 @@ On startup the plugin **silently** checks whether the npm registry has a newer v
 
 ## API
 
-`GET /git-tree/graph?cwd=<absolute-directory>&n=<1..2000>` → `{ok, repo, commits, refs}`. Error payload `{ok:false, error:{code, message}}`, with code ∈ `invalid-cwd | not-a-git-repo | git-unavailable | git-timeout | git-error | internal`. `not-a-git-repo` returns `200` + `ok:false` (a soft error the UI uses to show a hint); `invalid-cwd` returns `400`; other errors return `500`.
+`GET /git-tree/graph?session=<session id>&cwd=<directory inside the workspace>&n=<1..2000>` → `{ok, repo, commits, refs}`. Error payload `{ok:false, error:{code, message}}`, with code ∈ `invalid-cwd | not-a-git-repo | git-unavailable | git-timeout | git-error | internal`. `not-a-git-repo` returns `200` + `ok:false` (a soft error the UI uses to show a hint); `invalid-cwd` returns `400`; other errors return `500`. `session` selects the session whose workspace the host owns. Omitting `cwd` uses that workspace root. A provided `cwd` may be absolute or relative to the root, and after `realpath` it must stay inside the workspace.
 
 `commits[].date` is the author time (ISO 8601, `%aI`). The frontend shows it on a second line under each commit subject, formatted as YYYY-MM-DD HH:mm in the browser's local time zone. `commits[].shortHash` is a 7-character short hash; it is shown at the end of each subject line in a muted GitHub-style color (e.g. `feat: xxx (9259220)`). Clicking the row still copies the full hash.
 
@@ -158,9 +158,11 @@ Payload shape: `commits[].body` (commit body, possibly an empty string), `commit
 
 `GET /git-tree/update/status` → `{ok, current, latest, newer, checkError}`. `latest` is `null` when the check failed or the client is offline (the UI degrades silently); `newer` means the registry version is actually higher than the current version. Non-GET methods return `405` with `error.code = method-not-allowed`. The plugin does not provide any install/update write API.
 
+Both routes call `ctx.connection.admit(req)` before doing any work. A failed admission uses the status from the host: `401` with body `unauthorized`, or `403` with body `forbidden`. Git does not run, and the update payload is not returned.
+
 ## Security
 
-This route accepts an arbitrary `cwd` and runs git on it; it is a local development tool. Keep the web server bound to the loopback address (default `127.0.0.1`); do not expose it to the network with `--host 0.0.0.0`.
+Graph runs git only inside the workspace the host records for the current session. The root is the `path` of the `ctx.workspaceRegistry.list()` record whose `sessionIds` include that session. When the registry has no such membership, the fallback is `ctx.sessions.get(sessionId).header.cwd`. Both `cwd` and the root are passed through `realpath`. The result must equal the root or sit under it, using a path-boundary check so `/a/b` does not admit `/a/bc`. A path that is outside, missing, or that escapes through `..` or a symlink returns `400` + `invalid-cwd`. Keep the web server bound to the loopback address (default `127.0.0.1`); do not expose it to the network with `--host 0.0.0.0`.
 
 ## Tests
 
