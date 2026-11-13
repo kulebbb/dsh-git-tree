@@ -14,24 +14,11 @@ Repository: <https://github.com/kulebbb/dsh-git-tree> · npm: <https://www.npmjs
 
 This package is a **bundle**: `dsh.bundle.patch` points at the shipped `cordis.patch.yml`, so the DSH desktop "Plugins" page can install, enable, and uninstall it directly — you do not need to hand-edit the profile's `cordis.patch.yml`.
 
-Version history: v0.5.0 switched to bundle distribution; v0.6.0 moved the entry point from a "left-sidebar button + fullscreen overlay" to a **right-sidebar tab type** and removed the workspace picker; v0.7.0 kept the desktop app only and removed one-click update inside the panel plus `POST /git-tree/update`; v0.7.1 updated the copyright holder and listing metadata, with no change to runtime behavior; v0.7.2 requires `ctx.connection.admit()` before `GET /git-tree/graph` and `GET /git-tree/update/status`, and limits graph `cwd` to the current session's workspace. Trade-offs and impact are documented in `docs/decisions/2026-10-29-desktop-only.md`.
+Version history is in [CHANGELOG.md](https://github.com/kulebbb/dsh-git-tree/blob/main/CHANGELOG.md).
 
 ## Screenshot
 
 ![Git commit graph in the DSH desktop right sidebar](assets/sidebar-graph.png)
-
-## Structure
-
-| File | Role |
-|---|---|
-| `lib/index.js` | Node half: registers `GET /git-tree/graph?session=&cwd=&n=` and `GET /git-tree/update/status` on the webserver. Both routes call `ctx.connection.admit()` first; graph `cwd` stays inside the current session workspace. Read-only, does not write the profile |
-| `lib/client.js` | Browser half: registers the right-sidebar tab type (`git-tree`) + start-page card + SVG commit graph (`__ModuleLoader__` bundle) |
-| `lib/git.js` / `lib/parse.js` | Process invocation and a pure parser |
-| `lib/update.js` | Version comparison and npm registry latest-version lookup |
-| `cordis.patch.yml` | Bundle patch: inserts this package as the `git-tree` loader |
-| `locale/*.json` / `icon.svg` | Title, description, and icon shown on the Plugins page |
-| `docs/decisions/` | Architecture decision records (including the "desktop only" decision) |
-| `test/` | `node --test` unit tests + fixture-repo scripts (repo only; not published with the npm package) |
 
 ## Install (desktop)
 
@@ -57,22 +44,23 @@ You can also install it with the agent's `plugin_manager` tool: `action: install
 
 **Update and uninstall**: the desktop app has no "Update" button. Updating means reinstalling the new version on the "Plugins" page (the plugin manager overwrites the install and prompts for a restart). Uninstall is also on the "Plugins" page; if it says you need to stop DSH first, quit the app as prompted and then continue.
 
+## Usage
+
+The status bar at the top of the panel shows the project name, branch, ahead/behind counts, and the local and remote HEAD. Hovering a commit row shows the full commit message and the diff stats, and overlong subjects are truncated with an ellipsis so the graph never grows a horizontal scrollbar.
+
+API, payload, and the status-bar and tooltip implementation details are in [docs/api.en.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/api.en.md).
+
+## New-version notice
+
+On startup the plugin **silently** checks whether the npm registry has a newer version (it does not block startup, degrades automatically when offline, and does not produce log noise):
+
+- After the Git panel is opened, a thin banner appears below the status row: "New version {latest} (current {current}). Reinstall it from the DSH sidebar Plugins page to update."
+- The desktop app does not provide an "Update" button: the desktop profile is owned exclusively by the app, and install/update are both done on the "Plugins" page (for unofficial plugins, that means "reinstall the new version").
+- The banner can be dismissed with ✕; the dismissed state is kept only in the current panel instance, and the check runs again when the panel is remounted.
+
 ## Upgrading from older versions
 
-- **v0.4.0 (the hand-edited patch install)**: delete the old `insert` row first, then install 0.7.2 from the "Plugins" page. Otherwise the same id will have two sources (one from the profile patch and one from the bundle): startup will not fail, but enable/disable on the Plugins page will be attributed to the wrong layer, and uninstall may report that "the bundle is in use".
-
-  ```yaml
-  # ~/.dsh/profiles/desktop/cordis.patch.yml — delete this block
-  - insert:
-      - id: git-tree
-        name: '@kulebbb/dsh-git-tree'
-  ```
-
-  After installing, confirm there is only one Git tree entry in the plugin list on the "Plugins" page (the desktop profile cannot run `--dump-config` against the CLI).
-
-- **v0.5.0 / 0.6.0**: a normal reinstall from the "Plugins" page is enough; no extra manual steps.
-- **Previously installed in a `dsh web` profile**: Web is no longer supported from 0.7.0. Remove this plugin from that profile with `pnpm remove @kulebbb/dsh-git-tree`; if it was originally installed the v0.4.0 way, also delete the `insert git-tree` block in that profile's `cordis.patch.yml`; if it was installed as a v0.5.0+ bundle, remove the package name from the `dsh.profile.bundles` list.
-- The "Update" button that shipped with v0.4.0 only installs the new version as a regular dependency and does not write `dsh.profile.bundles` — follow this section to upgrade, and do not click the old Update button.
+To upgrade from v0.4.0 (a hand-edited `cordis.patch.yml` in the profile), delete the old `insert git-tree` row before installing 0.7.2 from the Plugins page — otherwise the same id comes from two layers. v0.5.0 / 0.6.0 only need a reinstall. If it was installed in a `dsh web` profile, remove it from 0.7.0 onward (`pnpm remove`, and clean the patch or `dsh.profile.bundles` according to how it was installed). Do not click the Update button that shipped with v0.4.0. Step-by-step notes, including the YAML to delete, are in [docs/upgrade.en.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.en.md).
 
 ## 🤖 One-shot install for agents
 
@@ -124,45 +112,22 @@ You are an installation assistant. Install the DSH (DeepSeek Harness) desktop pl
 - Ask me before continuing whenever you need information I have not provided.
 ```
 
-## New-version notice
-
-On startup the plugin **silently** checks whether the npm registry has a newer version (it does not block startup, degrades automatically when offline, and does not produce log noise):
-
-- After the Git panel is opened, a thin banner appears below the status row: "New version {latest} (current {current}). Reinstall it from the DSH sidebar Plugins page to update."
-- The desktop app does not provide an "Update" button: the desktop profile is owned exclusively by the app, and install/update are both done on the "Plugins" page (for unofficial plugins, that means "reinstall the new version").
-- The banner can be dismissed with ✕; the dismissed state is kept only in the current panel instance, and the check runs again when the panel is remounted.
-
-## API
-
-`GET /git-tree/graph?session=<session id>&cwd=<directory inside the workspace>&n=<1..2000>` → `{ok, repo, commits, refs}`. Error payload `{ok:false, error:{code, message}}`, with code ∈ `invalid-cwd | not-a-git-repo | git-unavailable | git-timeout | git-error | internal`. `not-a-git-repo` returns `200` + `ok:false` (a soft error the UI uses to show a hint); `invalid-cwd` returns `400`; other errors return `500`. `session` selects the session whose workspace the host owns. Omitting `cwd` uses that workspace root. A provided `cwd` may be absolute or relative to the root, and after `realpath` it must stay inside the workspace.
-
-`commits[].date` is the author time (ISO 8601, `%aI`). The frontend shows it on a second line under each commit subject, formatted as YYYY-MM-DD HH:mm in the browser's local time zone. `commits[].shortHash` is a 7-character short hash; it is shown at the end of each subject line in a muted GitHub-style color (e.g. `feat: xxx (9259220)`). Clicking the row still copies the full hash.
-
-### Long text and horizontal scrolling
-
-Commit-row text is measured in pixel width before rendering. **Overlong subjects are automatically truncated with "…"**. SVG width is capped at the panel's visible content width, and **a horizontal scrollbar never appears** (long text is truncated, never used to widen the view). Hovering any commit row shows a custom tooltip with the **full commit message** (full subject + commit body + hash + author + local time + refs) and **code-change stats** (in the `1 file changed, 24 insertions(+), 16 deletions(-)` style, from `git log --shortstat`; merge commits with no changes omit that line).
-
-### Status bar and local / remote HEAD
-
-A status bar stays at the top of the panel:
-
-- Project name (the directory name of the current session's working directory; hover to see the full path)
-- `⑂ <branch-name>`: shows "detached" when HEAD is detached
-- `↑n ↓m`: ahead/behind counts (`git rev-list --left-right --count HEAD...<ref>`). The remote side uses the current branch's `@{upstream}`, falling back to `origin/<branch-name>` when that is not configured, and is omitted when both sides are in sync
-- Two small chips, "Local <7-char-hash>" and "Remote <7-char-hash>"; when there is no upstream, the remote chip shows "Not pushed"
-- Two buttons on the right: search (expands a filter row; Esc collapses it) and refresh
-
-Graph markers stay in sync: the local HEAD commit dot is a **green hollow ring**, and the remote HEAD commit dot is a blue dashed ring. In a wide panel, "Local" and "Remote" badges are appended at the end of the row; they are hidden in a narrow panel (the status bar already shows both hashes).
-
-Payload shape: `commits[].body` (commit body, possibly an empty string), `commits[].stats` (`{files, insertions, deletions}`, or `null` for commits with no changes), `repo.localHead` (`{hash, branch|null}`), `repo.remoteHead` (`{ref, hash, ahead, behind}|null`).
-
-`GET /git-tree/update/status` → `{ok, current, latest, newer, checkError}`. `latest` is `null` when the check failed or the client is offline (the UI degrades silently); `newer` means the registry version is actually higher than the current version. Non-GET methods return `405` with `error.code = method-not-allowed`. The plugin does not provide any install/update write API.
-
-Both routes call `ctx.connection.admit(req)` before doing any work. A failed admission uses the status from the host: `401` with body `unauthorized`, or `403` with body `forbidden`. Git does not run, and the update payload is not returned.
-
 ## Security
 
 Graph runs git only inside the workspace the host records for the current session. The root is the `path` of the `ctx.workspaceRegistry.list()` record whose `sessionIds` include that session. When the registry has no such membership, the fallback is `ctx.sessions.get(sessionId).header.cwd`. Both `cwd` and the root are passed through `realpath`. The result must equal the root or sit under it, using a path-boundary check so `/a/b` does not admit `/a/bc`. A path that is outside, missing, or that escapes through `..` or a symlink returns `400` + `invalid-cwd`. Keep the web server bound to the loopback address (default `127.0.0.1`); do not expose it to the network with `--host 0.0.0.0`.
+
+## Structure
+
+| File | Role |
+|---|---|
+| `lib/index.js` | Node half: registers `GET /git-tree/graph?session=&cwd=&n=` and `GET /git-tree/update/status` on the webserver. Both routes call `ctx.connection.admit()` first; graph `cwd` stays inside the current session workspace. Read-only, does not write the profile |
+| `lib/client.js` | Browser half: registers the right-sidebar tab type (`git-tree`) + start-page card + SVG commit graph (`__ModuleLoader__` bundle) |
+| `lib/git.js` / `lib/parse.js` | Process invocation and a pure parser |
+| `lib/update.js` | Version comparison and npm registry latest-version lookup |
+| `cordis.patch.yml` | Bundle patch: inserts this package as the `git-tree` loader |
+| `locale/*.json` / `icon.svg` | Title, description, and icon shown on the Plugins page |
+| `docs/decisions/` | Architecture decision records (including the "desktop only" decision) |
+| `test/` | `node --test` unit tests + fixture-repo scripts (repo only; not published with the npm package) |
 
 ## Tests
 
