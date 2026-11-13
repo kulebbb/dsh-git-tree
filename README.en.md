@@ -14,7 +14,7 @@ Repository: <https://github.com/kulebbb/dsh-git-tree> · npm: <https://www.npmjs
 
 This package is a **bundle**: `dsh.bundle.patch` points at the shipped `cordis.patch.yml`, so the DSH desktop "Plugins" page can install, enable, and uninstall it directly — you do not need to hand-edit the profile's `cordis.patch.yml`.
 
-Version history is in [CHANGELOG.md](CHANGELOG.md).
+Version history is in [CHANGELOG.md](https://github.com/kulebbb/dsh-git-tree/blob/main/CHANGELOG.md).
 
 ## Screenshot
 
@@ -48,7 +48,7 @@ You can also install it with the agent's `plugin_manager` tool: `action: install
 
 The status bar at the top of the panel shows the project name, branch, ahead/behind counts, and the local and remote HEAD. Hovering a commit row shows the full commit message and the diff stats, and overlong subjects are truncated with an ellipsis so the graph never grows a horizontal scrollbar.
 
-API, payload, and the status-bar and tooltip implementation details are in [docs/api.en.md](docs/api.en.md).
+API, payload, and the status-bar and tooltip implementation details are in [docs/api.en.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/api.en.md).
 
 ## New-version notice
 
@@ -60,7 +60,7 @@ On startup the plugin **silently** checks whether the npm registry has a newer v
 
 ## Upgrading from older versions
 
-To upgrade from v0.4.0 (a hand-edited `cordis.patch.yml` in the profile), delete the old `insert git-tree` row before installing 0.7.2 from the Plugins page — otherwise the same id comes from two layers. v0.5.0 / 0.6.0 only need a reinstall. If it was installed in a `dsh web` profile, remove it from 0.7.0 onward (`pnpm remove`, and clean the patch or `dsh.profile.bundles` according to how it was installed). Do not click the Update button that shipped with v0.4.0. Step-by-step notes, including the YAML to delete, are in [docs/upgrade.en.md](docs/upgrade.en.md).
+To upgrade from v0.4.0 (a hand-edited `cordis.patch.yml` in the profile), delete the old `insert git-tree` row before installing 0.7.2 from the Plugins page — otherwise the same id comes from two layers. v0.5.0 / 0.6.0 only need a reinstall. If it was installed in a `dsh web` profile, remove it from 0.7.0 onward (`pnpm remove`, and clean the patch or `dsh.profile.bundles` according to how it was installed). Do not click the Update button that shipped with v0.4.0. Step-by-step notes, including the YAML to delete, are in [docs/upgrade.en.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.en.md).
 
 ## 🤖 One-shot install for agents
 

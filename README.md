@@ -14,7 +14,7 @@ DSH 桌面端（DeepSeek Harness.app）右侧栏插件：在右侧栏的标签�
 
 本包是一个 **bundle（组合包）**：`dsh.bundle.patch` 指向自带的 `cordis.patch.yml`，因此可以被 DSH 桌面端的「插件」页直接安装、启用和卸载，不需要手工编辑 profile 的 `cordis.patch.yml`。
 
-版本脉络见 [CHANGELOG.md](CHANGELOG.md)。
+版本脉络见 [CHANGELOG.md](https://github.com/kulebbb/dsh-git-tree/blob/main/CHANGELOG.md)。
 
 ## 截图
 
@@ -48,7 +48,7 @@ dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
 
 面板顶部的状态条显示项目名、分支、领先/落后，以及本地与云端 HEAD。悬停提交行会看到完整提交说明和代码变动量；过长的标题会以省略号截断，提交图不会出现横向滚动条。
 
-接口、payload，以及状态条与 tooltip 的实现细节见 [docs/api.md](docs/api.md)。
+接口、payload，以及状态条与 tooltip 的实现细节见 [docs/api.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/api.md)。
 
 ## 新版本提示
 
@@ -60,7 +60,7 @@ dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
 
 ## 从旧版本升级
 
-从 v0.4.0（手工改过 profile 的 `cordis.patch.yml`）升级时，先删掉旧的 `insert git-tree` 行，再在「插件」页安装 0.7.2，否则同一 id 会有两条来源；v0.5.0 / 0.6.0 直接重装即可。若曾装在 `dsh web` 的 profile 里，0.7.0 起请移除（`pnpm remove`，并按当时的装法清理 patch 或 `dsh.profile.bundles`）。不要点 v0.4.0 自带的「更新」按钮。逐步说明（含要删除的 YAML）见 [docs/upgrade.md](docs/upgrade.md)。
+从 v0.4.0（手工改过 profile 的 `cordis.patch.yml`）升级时，先删掉旧的 `insert git-tree` 行，再在「插件」页安装 0.7.2，否则同一 id 会有两条来源；v0.5.0 / 0.6.0 直接重装即可。若曾装在 `dsh web` 的 profile 里，0.7.0 起请移除（`pnpm remove`，并按当时的装法清理 patch 或 `dsh.profile.bundles`）。不要点 v0.4.0 自带的「更新」按钮。逐步说明（含要删除的 YAML）见 [docs/upgrade.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.md)。
 
 ## 🤖 Agent 一键安装
 
