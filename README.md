@@ -42,7 +42,7 @@ dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
 
 也可以用 agent 的 `plugin_manager` 工具安装：`action: install_bundle`，`target` 填 `github:kulebbb/dsh-git-tree` 或 `@kulebbb/dsh-git-tree`。
 
-**更新与卸载**：桌面端没有「更新」按钮，更新＝在「插件」页重新安装新版本（插件管理器会覆盖安装并提示重启）；卸载也在「插件」页，若提示需要先停止 DSH，按提示退出 App 后再操作。
+**更新与卸载**：从 npm 安装的版本可以在「插件」页应用内更新（打开本包详情 →「版本」区 →「更新到 x」）；从 GitHub（未锁定提交）或本地 `link:` 安装的没有「版本」区，更新＝在「插件」页重装。卸载也在「插件」页，若提示需要先停止 DSH，按提示退出 App 后再操作。想用面板里的「去更新」一键更新，请用 npm 安装。
 
 ## 使用
 
@@ -52,15 +52,16 @@ dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
 
 ## 新版本提示
 
-插件启动时**静默**检查 npm registry 是否有新版本（不阻塞启动、离线时自动降级、不产生日志噪音）：
+打开 Git 面板时**按需**检查 npm registry（首次打开触发；成功缓存 1 小时、失败缓存 5 分钟；不阻塞面板，检查失败只在浮层里说明）：
 
-- 打开 Git 面板后，状态行下方显示细横幅：「新版本 {latest}（当前 {current}），请在 DSH 侧边栏「插件」页重装以更新」。
-- 桌面端不提供「更新」按钮：桌面 profile 由 App 独占管理，安装/更新都交给「插件」页（对非官方插件是「重装新版本」）。
-- 横幅可 ✕ 关闭；关闭状态只保留在当前面板实例内，面板重新挂载时会重新检查。
+- 状态条右侧常驻版本入口（如 `v0.7.3`；窄栏收成 24px 图标）。点开后能看到当前安装来源、上次检查时间，以及常驻的「检查更新」。
+- 只有「npm 同名安装 + 有更高的正式版 + 该版本声明了 `dsh.bundle` + 未被弃用」才显示「↑ vX」。点「去更新」打开 DSH 插件页里本包的详情页，在「版本」区点「更新到 x」；换包、失败回滚和热更新都由 DSH 插件管理器完成。
+- Git 安装（无论是否锁定提交）和本地目录安装不会染色：浮层会说明为什么不能一键更新，并给「打开插件页」/「打开 npm」出口。GitHub 安装想用一键更新，请按 [docs/upgrade.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.md) 切到 npm。
+- 面板自身不下载、不安装、不改 profile，也没有任何安装/更新写接口。老版本 DSH 没有 `pluginNavigation` 服务时，「去更新」会退化为在新标签打开 npm 页。
 
 ## 从旧版本升级
 
-从 v0.4.0（手工改过 profile 的 `cordis.patch.yml`）升级时，先删掉旧的 `insert git-tree` 行，再在「插件」页安装 0.7.2，否则同一 id 会有两条来源；v0.5.0 / 0.6.0 直接重装即可。若曾装在 `dsh web` 的 profile 里，0.7.0 起请移除（`pnpm remove`，并按当时的装法清理 patch 或 `dsh.profile.bundles`）。不要点 v0.4.0 自带的「更新」按钮。逐步说明（含要删除的 YAML）见 [docs/upgrade.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.md)。
+从 v0.4.0（手工改过 profile 的 `cordis.patch.yml`）升级时，先删掉旧的 `insert git-tree` 行，再在「插件」页安装 0.7.3，否则同一 id 会有两条来源；v0.5.0 / 0.6.0 直接重装即可。若曾装在 `dsh web` 的 profile 里，0.7.0 起请移除（`pnpm remove`，并按当时的装法清理 patch 或 `dsh.profile.bundles`）。不要点 v0.4.0 自带的「更新」按钮。逐步说明（含要删除的 YAML）见 [docs/upgrade.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.md)。
 
 ## 🤖 Agent 一键安装
 
@@ -123,7 +124,7 @@ graph 只在宿主记录的当前会话工作区内执行 git：工作区根来�
 | `lib/index.js` | Node half：在 webserver 注册 `GET /git-tree/graph?session=&cwd=&n=` 与 `GET /git-tree/update/status`。两条路由先经 `ctx.connection.admit()`；graph 的 cwd 限制在当前会话工作区内。只读，不写 profile |
 | `lib/client.js` | Browser half：注册右侧栏 tab 类型（`git-tree`）+ 开始页卡片 + SVG 提交图（`__ModuleLoader__` bundle） |
 | `lib/git.js` / `lib/parse.js` | 进程调用与纯解析器 |
-| `lib/update.js` | 版本比较与 npm registry 最新版本查询 |
+| `lib/update.js` | 安装来源判定、版本比较、npm registry 查询与缓存 |
 | `cordis.patch.yml` | bundle patch：把本包插入为 `git-tree` 加载项 |
 | `locale/*.json` / `icon.svg` | 插件页展示用的标题、描述与图标 |
 | `docs/decisions/` | 架构决策记录（含「只支持桌面端」的决定） |

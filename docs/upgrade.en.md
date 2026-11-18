@@ -2,9 +2,19 @@
 
 Back to the [README](../README.en.md).
 
+## Switching to npm for one-click updates
+
+In-app updates with a Versions section are only offered for a registry install saved under the package's own name. GitHub installs (without a pinned commit) and local directory installs can only be reinstalled; a Git install pinned to a full 40-character commit updates from the Plugins page's Discover tab.
+
+1. Uninstall the Git tree plugin on the "Plugins" page; if it asks you to stop DSH first, quit the app as prompted and continue. The same package name cannot keep both a GitHub and an npm dependency.
+2. Install `@kulebbb/dsh-git-tree` (npm) on the "Plugins" page, then restart once when prompted.
+3. Later, when a newer version exists, the version entry on the status bar becomes "↑ vX". Clicking "Update" opens the bundle's page on the Plugins page; use "Update to x" in its Versions section.
+
+To keep editing local code, temporarily switch to a `link:` install, then publish and repeat the steps above to return to npm.
+
 ## Upgrading from older versions
 
-- **v0.4.0 (the hand-edited patch install)**: delete the old `insert` row first, then install 0.7.2 from the "Plugins" page. Otherwise the same id will have two sources (one from the profile patch and one from the bundle): startup will not fail, but enable/disable on the Plugins page will be attributed to the wrong layer, and uninstall may report that "the bundle is in use".
+- **v0.4.0 (the hand-edited patch install)**: delete the old `insert` row first, then install 0.7.3 from the "Plugins" page. Otherwise the same id will have two sources (one from the profile patch and one from the bundle): startup will not fail, but enable/disable on the Plugins page will be attributed to the wrong layer, and uninstall may report that "the bundle is in use".
 
   ```yaml
   # ~/.dsh/profiles/desktop/cordis.patch.yml — delete this block

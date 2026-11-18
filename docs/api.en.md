@@ -20,12 +20,21 @@ A status bar stays at the top of the panel:
 - `⑂ <branch-name>`: shows "detached" when HEAD is detached
 - `↑n ↓m`: ahead/behind counts (`git rev-list --left-right --count HEAD...<ref>`). The remote side uses the current branch's `@{upstream}`, falling back to `origin/<branch-name>` when that is not configured, and is omitted when both sides are in sync
 - Two small chips, "Local <7-char-hash>" and "Remote <7-char-hash>"; when there is no upstream, the remote chip shows "Not pushed"
-- Two buttons on the right: search (expands a filter row; Esc collapses it) and refresh
+- Three entries on the right: version (check for updates; a 24px icon in a narrow panel), search (expands a filter row; Esc collapses it), and refresh
 
 Graph markers stay in sync: the local HEAD commit dot is a **green hollow ring**, and the remote HEAD commit dot is a blue dashed ring. In a wide panel, "Local" and "Remote" badges are appended at the end of the row; they are hidden in a narrow panel (the status bar already shows both hashes).
 
 Payload shape: `commits[].body` (commit body, possibly an empty string), `commits[].stats` (`{files, insertions, deletions}`, or `null` for commits with no changes), `repo.localHead` (`{hash, branch|null}`), `repo.remoteHead` (`{ref, hash, ahead, behind}|null`).
 
-`GET /git-tree/update/status` → `{ok, current, latest, newer, checkError}`. `latest` is `null` when the check failed or the client is offline (the UI degrades silently); `newer` means the registry version is actually higher than the current version. Non-GET methods return `405` with `error.code = method-not-allowed`. The plugin does not provide any install/update write API.
+`GET /git-tree/update/status` → `{ok, current, latest, newer, installSource, canUpdate, checkedAt, checkError}`:
+
+- `latest` is `null` when the check failed or the client is offline; `newer` means the registry version is actually higher than the current version.
+- `installSource` ∈ `registry | git | local | unknown`, decided by the host from the profile's `package.json`; it is `unknown` when that file cannot be read. `gitPinned` only matters for Git sources: it is `true` when the spec pins a full 40-character commit (such installs update from the Plugins page's Discover tab).
+- `canUpdate` is `true` only for a registry install where `newer` holds and the latest version is stable, declares `dsh.bundle`, and is not deprecated. The panel uses it as the sole condition for showing "Update".
+- A non-null `checkError` means the check failed, or the latest version is not installable (in that case `latest` has a value and `canUpdate` is `false`); `checkErrorCode` ∈ `registry | local-version | not-installable | internal | null` lets the UI distinguish a network failure from an unreadable local version.
+- A failed refresh keeps the last good result and sets `stale: true`, so one network hiccup does not erase the update entry.
+- `checkedAt` is the millisecond timestamp of this result; a success is cached for 1 hour and a failure for 5 minutes. The panel always asks the official npm registry and the npmmirror fallback; it does not read a custom profile registry.
+- `?refresh=1` skips the cache read (it still writes the cache and updates the timestamp) and backs the panel's "Check for updates".
+- Non-GET methods return `405` with `error.code = method-not-allowed`. The plugin provides no install/update write API. Git and local installs still query the registry, but `canUpdate` is always `false` for them.
 
 Both routes call `ctx.connection.admit(req)` before doing any work. A failed admission uses the status from the host: `401` with body `unauthorized`, or `403` with body `forbidden`. Git does not run, and the update payload is not returned.

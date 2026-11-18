@@ -42,7 +42,7 @@ dsh plugin --profile <profile> add github:kulebbb/dsh-git-tree
 
 You can also install it with the agent's `plugin_manager` tool: `action: install_bundle`, with `target` set to `github:kulebbb/dsh-git-tree` or `@kulebbb/dsh-git-tree`.
 
-**Update and uninstall**: the desktop app has no "Update" button. Updating means reinstalling the new version on the "Plugins" page (the plugin manager overwrites the install and prompts for a restart). Uninstall is also on the "Plugins" page; if it says you need to stop DSH first, quit the app as prompted and then continue.
+**Update and uninstall**: a registry install can be updated in place on the "Plugins" page (open the bundle page → Versions section → "Update to x"). A GitHub install (without a pinned commit) or a local `link:` install has no Versions section, so updating means reinstalling from the "Plugins" page. Uninstall is also there; if it says you need to stop DSH first, quit the app as prompted. To use the panel's "Update" shortcut, install from npm.
 
 ## Usage
 
@@ -52,15 +52,16 @@ API, payload, and the status-bar and tooltip implementation details are in [docs
 
 ## New-version notice
 
-On startup the plugin **silently** checks whether the npm registry has a newer version (it does not block startup, degrades automatically when offline, and does not produce log noise):
+Opening the Git panel **checks npm on demand** (the first open triggers it; a success is cached for 1 hour, a failure for 5 minutes; it does not block the panel, and a failed check is explained only inside the popover):
 
-- After the Git panel is opened, a thin banner appears below the status row: "New version {latest} (current {current}). Reinstall it from the DSH sidebar Plugins page to update."
-- The desktop app does not provide an "Update" button: the desktop profile is owned exclusively by the app, and install/update are both done on the "Plugins" page (for unofficial plugins, that means "reinstall the new version").
-- The banner can be dismissed with ✕; the dismissed state is kept only in the current panel instance, and the check runs again when the panel is remounted.
+- A version entry stays on the right of the status bar (e.g. `v0.7.3`; it collapses to a 24px icon in a narrow panel). Opening it shows the install source, the last check time, and a permanent "Check for updates".
+- Only a "registry install saved under this package's own name + a newer stable version + that version declares `dsh.bundle` + not deprecated" shows "↑ vX". Clicking "Update" opens this bundle's page on the DSH Plugins page; use "Update to x" in its Versions section. The plugin manager performs the swap, the rollback on failure, and the hot update.
+- Git installs (pinned or not) and local directory installs are never highlighted: the popover explains why quick update is unavailable and offers "Open Plugins" / "Open npm". To use one-click updates from a GitHub install, switch to npm as described in [docs/upgrade.en.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.en.md).
+- The panel never downloads, installs, or edits the profile, and exposes no install/update write API. On an older DSH without the `pluginNavigation` service, "Update" falls back to opening the npm page in a new tab.
 
 ## Upgrading from older versions
 
-To upgrade from v0.4.0 (a hand-edited `cordis.patch.yml` in the profile), delete the old `insert git-tree` row before installing 0.7.2 from the Plugins page — otherwise the same id comes from two layers. v0.5.0 / 0.6.0 only need a reinstall. If it was installed in a `dsh web` profile, remove it from 0.7.0 onward (`pnpm remove`, and clean the patch or `dsh.profile.bundles` according to how it was installed). Do not click the Update button that shipped with v0.4.0. Step-by-step notes, including the YAML to delete, are in [docs/upgrade.en.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.en.md).
+To upgrade from v0.4.0 (a hand-edited `cordis.patch.yml` in the profile), delete the old `insert git-tree` row before installing 0.7.3 from the Plugins page — otherwise the same id comes from two layers. v0.5.0 / 0.6.0 only need a reinstall. If it was installed in a `dsh web` profile, remove it from 0.7.0 onward (`pnpm remove`, and clean the patch or `dsh.profile.bundles` according to how it was installed). Do not click the Update button that shipped with v0.4.0. Step-by-step notes, including the YAML to delete, are in [docs/upgrade.en.md](https://github.com/kulebbb/dsh-git-tree/blob/main/docs/upgrade.en.md).
 
 ## 🤖 One-shot install for agents
 
@@ -123,7 +124,7 @@ Graph runs git only inside the workspace the host records for the current sessio
 | `lib/index.js` | Node half: registers `GET /git-tree/graph?session=&cwd=&n=` and `GET /git-tree/update/status` on the webserver. Both routes call `ctx.connection.admit()` first; graph `cwd` stays inside the current session workspace. Read-only, does not write the profile |
 | `lib/client.js` | Browser half: registers the right-sidebar tab type (`git-tree`) + start-page card + SVG commit graph (`__ModuleLoader__` bundle) |
 | `lib/git.js` / `lib/parse.js` | Process invocation and a pure parser |
-| `lib/update.js` | Version comparison and npm registry latest-version lookup |
+| `lib/update.js` | Install-source classification, version comparison, npm registry lookup and cache |
 | `cordis.patch.yml` | Bundle patch: inserts this package as the `git-tree` loader |
 | `locale/*.json` / `icon.svg` | Title, description, and icon shown on the Plugins page |
 | `docs/decisions/` | Architecture decision records (including the "desktop only" decision) |

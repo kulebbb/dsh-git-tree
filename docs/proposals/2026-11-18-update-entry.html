@@ -1,0 +1,891 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>更新入口方案</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+/* ══════════════════════════════════════════════════════════════
+   汇报文档设计系统 · 固定 token —— 不改值，只消费
+   ══════════════════════════════════════════════════════════════ */
+:root {
+  --ink: #15171C; --ink-soft: #4A505E; --ink-faint: #838B9C;
+  --paper: #FBFAF9; --surface: #FFFFFF;
+  --line: #E4E2DE; --line-soft: #EFEEEB;
+  --blue: #2E63D8; --blue-wash: #EDF2FE;
+  --violet: #7343C9; --violet-wash: #F2ECFC;
+  --green: #1B8656; --green-wash: #E8F5EE;
+  --amber: #A8690C; --amber-wash: #FBF1E0;
+  --red: #B03A2E; --red-wash: #FBEAE7;
+  --code-bg: #F4F3F0;
+  --f-display: "Noto Serif SC", "Songti SC", serif;
+  --f-body: "Noto Sans SC", -apple-system, "PingFang SC", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #ECEAE6; --ink-soft: #A8AEBC; --ink-faint: #6E7688;
+    --paper: #101216; --surface: #171A20;
+    --line: #282C35; --line-soft: #21252C;
+    --blue: #7BA3F5; --blue-wash: #17203A;
+    --violet: #B48CF0; --violet-wash: #221836;
+    --green: #4CC08A; --green-wash: #10281E;
+    --amber: #DFA64A; --amber-wash: #2A2013;
+    --red: #E58579; --red-wash: #33201C;
+    --code-bg: #1C2027;
+  }
+}
+:root[data-theme="dark"] {
+  --ink: #ECEAE6; --ink-soft: #A8AEBC; --ink-faint: #6E7688;
+  --paper: #101216; --surface: #171A20;
+  --line: #282C35; --line-soft: #21252C;
+  --blue: #7BA3F5; --blue-wash: #17203A;
+  --violet: #B48CF0; --violet-wash: #221836;
+  --green: #4CC08A; --green-wash: #10281E;
+  --amber: #DFA64A; --amber-wash: #2A2013;
+  --red: #E58579; --red-wash: #33201C;
+  --code-bg: #1C2027;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--f-body); font-weight: 400;
+  font-size: 15.5px; line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 860px; margin: 0 auto; padding: 64px 28px 110px;
+  display: flex; flex-direction: column; gap: 54px;
+}
+.masthead { display: flex; flex-direction: column; gap: 16px; }
+.eyebrow {
+  font-family: var(--f-mono); font-size: 11.5px;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint);
+}
+h1 {
+  font-family: var(--f-display); font-weight: 700;
+  font-size: clamp(30px, 4.8vw, 44px); line-height: 1.28;
+  letter-spacing: -.01em; margin: 0; text-wrap: balance;
+}
+.lede { font-size: 16.5px; color: var(--ink-soft); max-width: 62ch; margin: 0; line-height: 1.8; }
+.meta-row { display: flex; flex-wrap: wrap; gap: 8px 10px; padding-top: 4px; }
+.tag {
+  font-family: var(--f-mono); font-size: 12px; padding: 4px 10px;
+  border-radius: 3px; background: var(--code-bg); color: var(--ink-soft);
+  border: 1px solid var(--line-soft);
+}
+.tag.ok { background: var(--green-wash); color: var(--green); border-color: transparent; }
+.tag.warn { background: var(--amber-wash); color: var(--amber); border-color: transparent; }
+.tag.bad { background: var(--red-wash); color: var(--red); border-color: transparent; }
+
+section { display: flex; flex-direction: column; gap: 20px; }
+h2 {
+  font-family: var(--f-display); font-weight: 700; font-size: 22px;
+  line-height: 1.4; margin: 0; padding-bottom: 11px;
+  border-bottom: 2px solid var(--ink); letter-spacing: -.005em;
+}
+h3 { font-family: var(--f-body); font-weight: 700; font-size: 15.5px; margin: 0; color: var(--ink); }
+p { margin: 0; max-width: 68ch; }
+.dim { color: var(--ink-soft); }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 10px;
+}
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+
+.plain {
+  background: var(--blue-wash); border-left: 3px solid var(--blue);
+  border-radius: 0 5px 5px 0; padding: 15px 20px;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.plain-label {
+  font-family: var(--f-mono); font-size: 10.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--blue); font-weight: 600;
+}
+.plain p { font-size: 14.5px; line-height: 1.8; }
+
+figure { margin: 0; display: flex; flex-direction: column; gap: 9px; }
+.figbox {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+  padding: 24px 18px; overflow-x: auto;
+}
+.figbox svg { display: block; margin: 0 auto; min-width: 560px; }
+figcaption { font-size: 12.5px; color: var(--ink-faint); font-family: var(--f-mono); text-align: center; }
+svg text { font-family: "Noto Sans SC", sans-serif; }
+
+.tablebox { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.tight-first td:first-child { white-space: nowrap; }
+.nowrap-2 td:nth-child(2) { white-space: nowrap; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 520px; }
+th, td { text-align: left; padding: 10px 15px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+th {
+  font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint); font-weight: 600;
+  background: var(--code-bg); white-space: nowrap;
+}
+tr:last-child td { border-bottom: none; }
+td.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+code {
+  font-family: var(--f-mono); font-size: .88em;
+  background: var(--code-bg); padding: 2px 6px; border-radius: 3px; color: var(--ink);
+}
+
+.tree { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; overflow-x: auto; }
+.tree-legend {
+  display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 10px 16px;
+  border-bottom: 1px solid var(--line-soft);
+  font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-faint);
+}
+.tree-legend b { font-weight: 600; }
+.tree .add { color: var(--green); }
+.tree .mod { color: var(--amber); }
+.tree .del { color: var(--red); }
+.tree .keep { color: var(--ink-faint); }
+.tree-body {
+  display: table; padding: 14px 18px 16px;
+  font-family: var(--f-mono); font-size: 12.5px; line-height: 1.75;
+}
+.tree-row { display: table-row; }
+.tree-path { display: table-cell; padding-right: 24px; color: var(--ink-soft); white-space: pre; }
+.tree-note { display: table-cell; color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
+
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 7px; vertical-align: 1px; }
+.dot.g { background: var(--green); }
+.dot.a { background: var(--amber); }
+.dot.r { background: var(--red); }
+
+ul.clean { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+ul.clean li { padding-left: 20px; position: relative; max-width: 68ch; }
+ul.clean li::before {
+  content: ""; position: absolute; left: 2px; top: 12px;
+  width: 6px; height: 1.5px; background: var(--ink-faint);
+}
+ol.steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 9px; }
+ol.steps li { max-width: 66ch; padding-left: 4px; }
+ol.steps li::marker { font-family: var(--f-mono); font-size: 13px; color: var(--ink-faint); }
+
+.pending {
+  background: var(--amber-wash); border-radius: 6px; padding: 20px 22px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.pending h3 { color: var(--amber); }
+.verdict { border-radius: 6px; padding: 16px 20px; display: flex; flex-direction: column; gap: 6px; }
+.verdict.good { background: var(--green-wash); }
+.verdict.good h3 { color: var(--green); }
+.verdict.bad { background: var(--red-wash); }
+.verdict.bad h3 { color: var(--red); }
+
+.stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 1px; background: var(--line); border: 1px solid var(--line);
+  border-radius: 6px; overflow: hidden;
+}
+.stat { background: var(--surface); padding: 18px 16px; display: flex; flex-direction: column; gap: 3px; }
+.stat b {
+  font-family: var(--f-mono); font-size: 25px; font-weight: 600;
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.2;
+}
+.stat span { font-size: 12px; color: var(--ink-faint); }
+
+footer {
+  border-top: 1px solid var(--line); padding-top: 20px;
+  font-size: 13px; color: var(--ink-faint); font-family: var(--f-mono);
+}
+
+/* ── 原型容器：模拟 DSH 右侧栏，暗色，与真实面板同一组 token 语义 ── */
+.mock { display: flex; flex-direction: column; gap: 12px; }
+.mock-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mock-title { font-family: var(--f-mono); font-size: 12px; color: var(--ink-faint); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button {
+  font-family: var(--f-body); font-size: 12.5px; padding: 5px 11px; border: none;
+  background: var(--surface); color: var(--ink-soft); cursor: pointer;
+  border-right: 1px solid var(--line-soft);
+}
+.seg button:last-child { border-right: none; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.dshframe {
+  --d-bg: #101216; --d-surface: #171A20; --d-layer: #1E222A;
+  --d-line: #2A2E37; --d-text: #ECEAE6; --d-soft: #A8AEBC; --d-faint: #6E7688;
+  --d-accent: #7BA3F5; --d-green: #4CC08A; --d-red: #E58579; --d-amber: #DFA64A;
+  position: relative; width: 100%; max-width: 402px;
+  background: var(--d-bg); border: 1px solid var(--d-line); border-radius: 10px;
+  overflow: hidden; color: var(--d-text); font-size: 12px; line-height: 18px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.35);
+}
+.dshframe .statusbar {
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+  border-bottom: 1px solid var(--d-line); white-space: nowrap; overflow: hidden;
+}
+.dshframe .proj { color: var(--d-faint); max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+.dshframe .sep { color: var(--d-faint); opacity: .6; }
+.dshframe .branch { display: inline-flex; align-items: center; gap: 5px; color: var(--d-text); font-family: var(--f-mono); }
+.dshframe .head-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--d-green); }
+.dshframe .gnode-head { background: var(--d-bg); box-shadow: inset 0 0 0 2px var(--d-green); }
+.dshframe .ab { color: var(--d-faint); font-family: var(--f-mono); }
+.dshframe .sp { margin-left: auto; }
+.dshframe .pill {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 7px;
+  border-radius: 6px; background: var(--d-layer); color: var(--d-soft);
+  font-family: var(--f-mono); font-size: 10.5px; flex: 0 1 auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dshframe .pill-local { color: var(--d-green); }
+.dshframe .pill-remote { color: var(--d-accent); }
+.dshframe .chip {
+  display: inline-flex; align-items: center; height: 24px; padding: 0 8px;
+  border: 1px solid var(--d-line); border-radius: 6px; background: var(--d-layer);
+  color: var(--d-soft); font-family: var(--f-mono); font-size: 11px; cursor: pointer;
+  flex: none;
+}
+.dshframe .chip:hover { color: var(--d-text); border-color: var(--d-faint); }
+.dshframe .chip.up { background: rgba(123,163,245,.16); color: var(--d-accent); }
+.dshframe .icb {
+  width: 24px; height: 24px; padding: 0; border: none; border-radius: 999px;
+  background: transparent; color: var(--d-faint); font-size: 14px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+}
+.dshframe .icb { position: relative; }
+.dshframe .icb:hover { background: var(--d-layer); color: var(--d-soft); }
+.dshframe .icb .ndot {
+  position: absolute; top: 3px; right: 3px; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--d-accent);
+}
+.dshframe.tall { min-height: 320px; }
+.dshframe.wide { max-width: 560px; }
+.dshframe .graph { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 9px; }
+.dshframe .grow { display: flex; align-items: center; gap: 7px; font-family: var(--f-mono); font-size: 10.5px; color: var(--d-soft); }
+.dshframe .gnode { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.dshframe .gline { width: 1.5px; height: 8px; margin-left: 3.2px; background: var(--d-faint); opacity: .5; }
+.dshframe .gsubject { color: var(--d-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshframe .ghash { color: var(--d-faint); flex: none; }
+.dshframe .pop {
+  position: absolute; right: 8px; top: 40px; width: 286px; z-index: 4;
+  background: var(--d-surface); border: 1px solid var(--d-line); border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.5); padding: 13px 14px 11px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.dshframe .pop[hidden] { display: none; }
+.dshframe .pop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dshframe .pop-title { font-weight: 600; font-size: 12.5px; color: var(--d-text); }
+.dshframe .pop-cur { font-family: var(--f-mono); font-size: 10.5px; color: var(--d-faint); }
+.dshframe .pop-state { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--d-text); }
+.dshframe .st-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.dshframe .pop-note { font-size: 11.5px; line-height: 17px; color: var(--d-soft); }
+.dshframe .pop-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.dshframe .btn {
+  font-family: inherit; font-size: 12px; line-height: 18px; padding: 3px 11px;
+  border-radius: 6px; border: 1px solid var(--d-line); background: transparent;
+  color: var(--d-text); cursor: pointer;
+}
+.dshframe .btn.primary { background: var(--d-accent); border-color: var(--d-accent); color: #0E1420; font-weight: 500; }
+.dshframe .btn.ghost { border-color: transparent; color: var(--d-soft); }
+.dshframe .btn.ghost:hover { background: var(--d-layer); }
+.dshframe .pop-foot {
+  border-top: 1px solid var(--d-line); padding-top: 7px; margin-top: 1px;
+  font-family: var(--f-mono); font-size: 10px; color: var(--d-faint);
+  display: flex; align-items: center; gap: 8px; justify-content: space-between;
+}
+.dshframe .pop-foot-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dshframe .pop-foot .btn { flex: none; padding: 1px 8px; font-size: 10.5px; }
+.dshframe .banner {
+  display: flex; align-items: center; gap: 10px; padding: 7px 12px;
+  border-bottom: 1px solid var(--d-line); background: rgba(123,163,245,.1);
+  font-size: 11.5px; color: var(--d-text);
+}
+.dshframe .banner .link { margin-left: auto; color: var(--d-accent); cursor: pointer; white-space: nowrap; }
+.dshframe .banner .x { color: var(--d-faint); cursor: pointer; }
+.dshframe .banner[hidden] { display: none; }
+.dshframe .mock-note { padding: 10px 12px; border-top: 1px solid var(--d-line); font-size: 11px; color: var(--d-faint); }
+.mock-caption { font-size: 12.5px; color: var(--ink-faint); font-family: var(--f-mono); text-align: center; }
+
+/* 落点页：插件页片段 */
+.dshframe .pluginpage { padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
+.dshframe .pp-crumb { font-size: 10.5px; color: var(--d-faint); }
+.dshframe .pp-title { font-size: 13px; font-weight: 600; }
+.dshframe .pp-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--d-soft); }
+.dshframe .pp-row .btn { margin-left: auto; }
+.dshframe .pp-tag { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: rgba(76,192,138,.14); color: var(--d-green); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="eyebrow">dsh-git-tree · 更新入口方案 · 2026-11-18</div>
+  <h1>让用户主动查更新，一点直达更新按钮</h1>
+  <p class="lede">这篇回答两件事：Git 提交图面板怎么让用户自己发现新版本，以及点下去之后怎么用最少的步骤完成更新。结论是学 dsh-context-optimize 的分工——面板只负责「发现 + 领路」，换包与回滚交给 DSH 插件页；但比它多一个手动检查入口，并修掉现在会误导人的「假提示」。文末有三件事需要你拍板，确认前我不动代码。</p>
+  <div class="meta-row">
+    <span class="tag ok">方案 · 已按方向 A 实施（0.7.3）</span>
+    <span class="tag">DSH 0.2.2-rc.3</span>
+    <span class="tag">本机安装方式未改</span>
+    <span class="tag bad">本机是 GitHub 安装，当前无法应用内更新</span>
+    <span class="tag warn">本地仓库落后 origin/main 4 个提交</span>
+  </div>
+</header>
+
+<section>
+  <h2>一、先给结论</h2>
+  <p>要做的是三件小事，不是重写更新模块：</p>
+  <ul class="clean">
+    <li><strong>主动发现</strong>：状态条右侧常驻一个版本胶囊（如 <code>v0.7.0</code>），点开是更新浮层，里面永远有一个「检查更新」动作；不再只靠启动时偷偷查一次。</li>
+    <li><strong>快捷更新</strong>：查到新版本时，浮层里点「去更新」，直接打开 DSH 插件页里本插件的详情页——那一页的「版本」区已经带着「更新到 0.7.2」按钮。插件自己不下载、不装包、不改 profile。</li>
+    <li><strong>修掉假提示</strong>：现在只要 npm 上有更高版本就亮横幅，哪怕本机是从 GitHub 装的、插件页根本没有更新按钮。新逻辑先看安装来源，只有「npm 同名安装」才把用户往更新按钮上领。</li>
+  </ul>
+  <div class="stats">
+    <div class="stat"><b>0.2.2-rc.3</b><span>本机 DSH 版本</span></div>
+    <div class="stat"><b>0.7.2</b><span>npm 最新 · origin/main</span></div>
+    <div class="stat"><b>0.7.0</b><span>本机已装版本</span></div>
+    <div class="stat"><b>github:</b><span>本机现有安装方式</span></div>
+  </div>
+  <div class="plain">
+    <div class="plain-label">先说人话 · 为什么不能「点一下就在面板里装好」</div>
+    <p>插件是跑在 DSH 里的客人，不能一边跑着一边把自己脚下的地板换掉。换包、失败回滚、热更新，这些都必须由 DSH 这个「房东」来做。所以面板能做的是把「有新版本」这件事摆到你面前，并把你送到房东的操作台前——剩下的那一下，由插件页完成。这也是 dsh-context-optimize 的选择。</p>
+  </div>
+</section>
+
+<section>
+  <h2>二、参考对象到底做了什么</h2>
+  <p>dsh-context-optimize 的做法可以拆成三段：我们只有最左边那段的「被动提示」，缺的是其中的「用户可主动触发」和「点击后领路」；中间和右边本来就归 DSH，不用我们重写。</p>
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 720 200" width="720" height="200" role="img" aria-label="职责分工：本插件的面板负责发现与领路，DSH 插件页负责版本区与更新按钮，DSH 插件管理器负责换包与回滚">
+        <defs>
+          <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+            <path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g style="color:var(--ink-faint)">
+          <rect x="12" y="34" width="204" height="78" rx="6" fill="var(--blue-wash)" stroke="var(--blue)"/>
+          <text x="114" y="62" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">我们的面板</text>
+          <text x="114" y="83" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)">发现新版本 · 领路</text>
+          <text x="114" y="100" text-anchor="middle" font-size="10.5" fill="var(--ink-faint)">不下载 · 不装包 · 不改配置</text>
+
+          <rect x="258" y="34" width="204" height="78" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="360" y="62" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">DSH 插件页</text>
+          <text x="360" y="83" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)">版本区「更新到 0.7.2」</text>
+          <text x="360" y="100" text-anchor="middle" font-size="10.5" fill="var(--ink-faint)">已经存在，不重写</text>
+
+          <rect x="504" y="34" width="204" height="78" rx="6" fill="var(--green-wash)" stroke="var(--green)"/>
+          <text x="606" y="62" text-anchor="middle" font-size="13" font-weight="600" fill="var(--ink)">插件管理器</text>
+          <text x="606" y="83" text-anchor="middle" font-size="10.5" fill="var(--ink-soft)">换包 · 失败回滚 · 热更新</text>
+          <text x="606" y="100" text-anchor="middle" font-size="10.5" fill="var(--ink-faint)">DSH 0.2.2 自带</text>
+
+          <line x1="218" y1="73" x2="252" y2="73" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <line x1="464" y1="73" x2="498" y2="73" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+          <text x="235" y="128" text-anchor="middle" font-size="10" fill="var(--ink-faint)">一次点击</text>
+          <text x="481" y="128" text-anchor="middle" font-size="10" fill="var(--ink-faint)">一次点击</text>
+          <text x="360" y="164" text-anchor="middle" font-size="11" fill="var(--ink-soft)">我们只接管最左边一格：让「有新版本」这件事被看见，并把人送过去。</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>三段职责的边界：越靠近右边，越不该由第三方插件自己实现</figcaption>
+  </figure>
+  <p>它的显示规则尤其值得照抄——目标不是「有新版就喊」，而是「喊了以后一定有更新按钮可点」：</p>
+  <div class="tablebox tight-first">
+    <table>
+      <thead><tr><th>判定</th><th>规则</th><th>防的是什么</th></tr></thead>
+      <tbody>
+        <tr><td><span class="dot g"></span>安装来源</td><td>只认 profile 里以版本号 / 范围安装的同名 npm 包；<code>link:</code>、<code>file:</code>、Git、裸 URL 不进入「可更新」状态</td><td>点了跳到插件页却发现没有「版本」区</td></tr>
+        <tr><td><span class="dot g"></span>版本资格</td><td>只认正式版，且该版本清单里声明了 <code>dsh.bundle</code></td><td>把用户引到一个装不上的版本</td></tr>
+        <tr><td><span class="dot g"></span>版本高低</td><td>比当前版本高才提示；相等或更低不提示</td><td>反向赞歌与重复打扰</td></tr>
+        <tr><td><span class="dot a"></span>失败</td><td>网络、超时、坏 JSON 全部静默降级</td><td>面板里多一个「检查失败」添噪</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="plain">
+    <div class="plain-label">版本资格 · 为什么不能直接把 npm 的「最新版」拿来用</div>
+    <p>npm 上的最新版本不一定能装进 DSH：它可能是个测试版，也可能压根没声明自己是 DSH 插件。插件页在列版本时会先筛一遍，我们如果只看「最新版号」，就会出现「我们点亮了、插件页却没有更新按钮」的死路。所以判定要和插件页的主要标准一致：正式版、声明了 <code>dsh.bundle</code>、未被弃用；<code>engines.dsh</code> 与 peer 兼容由插件页最后把关。</p>
+  </div>
+</section>
+
+<section>
+  <h2>三、现状的三个问题</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3><span class="dot r"></span>假提示</h3>
+      <p class="dim">现在的检查只看 npm registry 最新版，不看本机是怎么装的。本机是 <code>github:kulebbb/dsh-git-tree</code>，DSH 对这种未锁定提交的 Git 安装不提供更新按钮——横幅却照样会亮。</p>
+    </div>
+    <div class="card">
+      <h3><span class="dot a"></span>只查一次</h3>
+      <p class="dim">检查只在插件启动时跑一次，结果存在内存里。启动时断网、或者 DSH 开了很久，就再也不会重新查；用户也没有任何「现在查一下」的入口。</p>
+    </div>
+    <div class="card">
+      <h3><span class="dot a"></span>入口是被动横幅</h3>
+      <p class="dim">横幅只有一行灰字「请在插件页重装以更新」，不能点、不能跳转，也不会告诉你去插件页的哪一页。用户看完还是得自己找。</p>
+    </div>
+  </div>
+  <p>第三点还带来一个隐性体验问题：横幅出现时占一行、可以关掉，关掉后本次面板实例内不再出现；而「当前版本是多少」这个排查问题时最常被问到的信息，面板里根本没有。</p>
+  <p class="dim">这不是假设：本机安装的是 10 月 29 日从 GitHub 拉的 0.7.0，直接请求正在运行的面板接口，返回是 <code>{"current":"0.7.0","latest":"0.7.2","newer":true}</code>——横幅现在就会亮。可插件页面对这个 Git 安装没有更新按钮，点过去只能重装。假提示是当下正在发生的事，不是将来的风险。</p>
+</section>
+
+<section>
+  <h2>四、方案总览</h2>
+  <p>保留现有只读接口的形态，扩成一条「带缓存、可手动刷新」的版本状态接口；客户端在状态条加一个版本胶囊，点开是更新浮层。整条链路四步：</p>
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 720 150" width="720" height="150" role="img" aria-label="用户主动发现更新的四步链路：点版本胶囊、浮层里点检查更新或去更新、插件页版本区、更新完成">
+        <defs><marker id="ar2" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto"><path d="M0,0 L7,3.2 L0,6.4 z" fill="currentColor"/></marker></defs>
+        <g style="color:var(--ink-faint)">
+          <rect x="8" y="28" width="150" height="62" rx="5" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="83" y="53" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">① 点版本胶囊</text>
+          <text x="83" y="72" text-anchor="middle" font-size="10" fill="var(--ink-faint)">状态条右侧常驻</text>
+
+          <rect x="186" y="28" width="158" height="62" rx="5" fill="var(--blue-wash)" stroke="var(--blue)"/>
+          <text x="265" y="53" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">② 更新浮层</text>
+          <text x="265" y="72" text-anchor="middle" font-size="10" fill="var(--ink-soft)">检查更新 / 去更新</text>
+
+          <rect x="372" y="28" width="158" height="62" rx="5" fill="var(--surface)" stroke="var(--line)"/>
+          <text x="451" y="53" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">③ 插件页版本区</text>
+          <text x="451" y="72" text-anchor="middle" font-size="10" fill="var(--ink-faint)">「更新到 0.7.2」</text>
+
+          <rect x="558" y="28" width="154" height="62" rx="5" fill="var(--green-wash)" stroke="var(--green)"/>
+          <text x="635" y="53" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">④ 更新完成</text>
+          <text x="635" y="72" text-anchor="middle" font-size="10" fill="var(--ink-soft)">按提示（热更新 / 重启）</text>
+
+          <line x1="160" y1="59" x2="180" y2="59" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar2)"/>
+          <line x1="346" y1="59" x2="366" y2="59" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar2)"/>
+          <line x1="532" y1="59" x2="552" y2="59" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar2)"/>
+          <text x="360" y="122" text-anchor="middle" font-size="10.5" fill="var(--ink-faint)">① ② 是我们的代码；③ ④ 是 DSH 现成能力</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption>主动发现与快捷更新是同一条链路上的两次点击，不再是一条只能看的文字</figcaption>
+  </figure>
+  <div class="grid-2">
+    <div class="card">
+      <h3>宿主半：从「启动查一次」变成「按需查、可刷新」</h3>
+      <p class="dim">同一个 <code>GET /git-tree/update/status</code> 路由：首次请求才查，成功缓存 1 小时、失败缓存 5 分钟，并发请求共享同一次网络调用；加 <code>?refresh=1</code> 跳过读缓存（仍写缓存并更新检查时间），供「检查更新」按钮使用。认证沿用 0.7.2 起的 <code>ctx.connection.admit()</code>，不新开免认证路径。安装来源从宿主注入的 <code>profileContext.dir</code> 读 profile 的 <code>package.json</code> 判定。</p>
+    </div>
+    <div class="card">
+      <h3>客户端半：胶囊 + 浮层，删掉旧横幅</h3>
+      <p class="dim">状态条右侧加 <code>v0.7.0</code> 胶囊；点击弹出浮层，按安装来源与检查结果给不同文案和主操作。有新版时胶囊变成 <code>↑ v0.7.2</code> 并染色，这是唯一主动提醒。旧的一行文字横幅删除，避免两套提示并存。</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>五、视觉方向 A（推荐）：版本胶囊 + 更新浮层</h2>
+  <p>下面是可以点的原型，五种状态对应真实会遇到的情况。先点胶囊，再在浮层里看不同按钮；原型按 560px 宽的侧栏展示。</p>
+
+  <div class="mock">
+    <div class="mock-top">
+      <span class="mock-title">方向 A · 状态条版本胶囊 + 浮层（可点击）</span>
+      <div class="seg" role="group" aria-label="切换更新状态">
+        <button type="button" data-state="idle" aria-pressed="true">无更新</button>
+        <button type="button" data-state="update" aria-pressed="false">有新版本</button>
+        <button type="button" data-state="git" aria-pressed="false">GitHub 安装</button>
+        <button type="button" data-state="local" aria-pressed="false">本地目录</button>
+        <button type="button" data-state="error" aria-pressed="false">检查失败</button>
+      </div>
+    </div>
+
+    <div class="dshframe tall wide" id="frameA">
+      <div class="statusbar">
+        <span class="proj">dsh-git-tree</span>
+        <span class="sep">·</span>
+        <span class="branch"><i class="head-dot"></i>main</span>
+        <span class="ab">↑1 ↓0</span>
+        <span class="pill pill-local">本地 3f2a1c</span>
+        <span class="pill pill-remote">云端 b81e904</span>
+        <span class="sp"></span>
+        <button type="button" class="chip" id="chipA" title="检查更新（当前 v0.7.0）" aria-label="检查更新（当前 v0.7.0）" aria-haspopup="dialog" aria-expanded="false">v0.7.0</button>
+        <button type="button" class="icb" aria-label="搜索">⌕</button>
+        <button type="button" class="icb" aria-label="刷新">↻</button>
+      </div>
+      <div class="graph">
+        <div class="grow"><span class="gnode gnode-head"></span><span class="gsubject">feat: 更新入口与手动检查</span><span class="ghash">3f2a1c7</span></div>
+        <div class="gline"></div>
+        <div class="grow"><span class="gnode" style="background:#7BA3F5"></span><span class="gsubject">fix: 去掉提交图文字灰边</span><span class="ghash">b81e904</span></div>
+        <div class="gline"></div>
+        <div class="grow"><span class="gnode" style="background:#DFA64A"></span><span class="gsubject">docs: 桌面端专用说明</span><span class="ghash">9c44a10</span></div>
+        <div class="gline"></div>
+        <div class="grow"><span class="gnode" style="background:#4CC08A"></span><span class="gsubject">style: 状态条版本胶囊</span><span class="ghash">7d10c22</span></div>
+        <div class="gline"></div>
+        <div class="grow"><span class="gnode" style="background:#7BA3F5"></span><span class="gsubject">test: 更新判定与缓存</span><span class="ghash">2a9f5b1</span></div>
+      </div>
+      <div class="pop" id="popA" hidden>
+        <div class="pop-head">
+          <span class="pop-title">Git 提交图</span>
+          <span class="pop-cur" id="popCur">v0.7.0</span>
+        </div>
+        <div class="pop-state"><span class="st-dot" id="popDot" style="background:#4CC08A"></span><span id="popState">已是最新版本</span></div>
+        <div class="pop-note" id="popNote">当前从 npm 安装。更新由 DSH 插件页完成，失败会自动装回旧版本。</div>
+        <div class="pop-actions" id="popActions"></div>
+        <div class="pop-foot">
+          <span class="pop-foot-text" id="popFoot">上次检查 12:30</span>
+          <button type="button" class="btn check" id="checkBtn">↻ 检查更新</button>
+        </div>
+      </div>
+      <div class="mock-note">原型的浮层用 absolute 演示；真实实现用 fixed 定位（同现有 tooltip），不受状态条 overflow 裁切。宽度 286px，窄于 320px 时改为贴边。</div>
+    </div>
+    <div class="mock-caption">点胶囊试：上方按钮切换五种状态</div>
+  </div>
+
+  <div class="plain">
+    <div class="plain-label">为什么胶囊常驻 · 不是有更新才出现</div>
+    <p>「用户主动发现」的前提是先有一个稳定的入口。胶囊平时就是个版本号，点开能查；有新版时它自己变成蓝色并带上新版本号。这样既不会在没更新时打扰你，也不会出现「面板里根本找不到检查更新在哪」的情况。</p>
+  </div>
+  <p class="dim">可识别性单独说明：真实状态条里还有「本地」「云端」两个哈希胶囊（原型已补上），加一个约 56px 的入口会先挤它们。所以做了两层处理：胶囊用 24px 高、带描边和 <code>title</code>/<code>aria-label</code>「检查更新（当前 v0.7.0）」，一望可知是可点的；宽度小于约 460px 时收成 24px 的 <code>↑</code> 图标，入口不消失，版本号改在浮层里显示。代价是窄栏时哈希胶囊会更早出现省略号，这是需要接受的取舍。</p>
+
+  <h3>点「去更新」之后落在哪</h3>
+  <p>不是我们自己画的页面，而是 DSH 插件页里本包的详情页。版本区一打开就会自动查一次，通常直接能看到「更新到 0.7.2」：</p>
+  <div class="mock">
+    <div class="dshframe" style="max-width: 402px">
+      <div class="pluginpage">
+        <div class="pp-crumb">插件 › 已安装</div>
+        <div class="pp-title">@kulebbb/dsh-git-tree <span class="pp-tag">可更新</span></div>
+        <div class="pp-row">版本 <span class="ghash" style="color:#A8AEBC">0.7.2 · 正式版</span><button type="button" class="btn primary">更新</button></div>
+        <div class="pp-row" style="color:#6E7688">更新期间插件会短暂停止；安装失败会保留或重新安装 0.7.0。</div>
+      </div>
+    </div>
+    <div class="mock-caption">落点是 DSH 自己的页面，我们不重画、不代点</div>
+  </div>
+  <p class="dim">拿不到 <code>pluginNavigation</code> 服务时（老 DSH 或权限受限），浮层里的「去更新」退化为在浏览器新标签打开 npm 页面，和 dsh-context-optimize 的兜底一致。</p>
+  <p class="dim">首帧与失败态也要定义：还没拿到状态时胶囊显示 <code>v—</code>，浮层写「尚未检查」，点一下就查；检查中按钮禁用并显示「正在检查…」，避免连点。交互按原生控件做：胶囊带 <code>aria-haspopup</code> / <code>aria-expanded</code> / <code>title</code>；Esc 先关浮层（搜索框打开时先关搜索，二者不同时存在），焦点还给胶囊；浮层里的按钮都是原生 <code>&lt;button&gt;</code>，Tab 顺序自然，不设焦点陷阱。</p>
+</section>
+
+<section>
+  <h2>六、方向对照</h2>
+  <div class="grid-2">
+    <div class="verdict good">
+      <h3>推荐：方向 A · 版本胶囊 + 浮层</h3>
+      <p class="dim" style="font-size:14px">常驻入口最稳，各种状态都有地方安放；默认不打扰，有新版才染色。代价是多一个浮层组件的交互与无障碍细节（Esc、点外关闭、焦点回胶囊），以及窄栏时要在「胶囊」和「图标」两种形态间切换。</p>
+    </div>
+    <div class="verdict bad">
+      <h3>方向 B · 横幅 + 状态条检查图标</h3>
+      <p class="dim" style="font-size:14px">更醒目，但没更新时入口只剩一个没有文字的箭头；有更新时横幅又永久占一行。等于用两处入口换一次醒目，窄侧栏尤其挤。</p>
+    </div>
+  </div>
+  <p>方向 B 的实际样子，两种状态放在一起看：没更新时横幅不出现，只剩状态条上一个 <code>↑</code> 图标；有更新时横幅占掉一行。</p>
+  <div class="grid-2">
+    <div class="mock">
+      <div class="dshframe">
+        <div class="statusbar">
+          <span class="proj">dsh-git-tree</span>
+          <span class="sep">·</span>
+          <span class="branch"><i class="head-dot"></i>main</span>
+          <span class="sp"></span>
+          <button type="button" class="icb" aria-label="检查更新">↑<i class="ndot"></i></button>
+          <button type="button" class="icb" aria-label="搜索">⌕</button>
+          <button type="button" class="icb" aria-label="刷新">↻</button>
+        </div>
+        <div class="banner">新版本 v0.7.2 已发布<span class="link">去更新 →</span><span class="x">✕</span></div>
+        <div class="graph">
+          <div class="grow"><span class="gnode gnode-head"></span><span class="gsubject">feat: 更新入口与手动检查</span><span class="ghash">3f2a1c7</span></div>
+          <div class="gline"></div>
+          <div class="grow"><span class="gnode" style="background:#7BA3F5"></span><span class="gsubject">fix: 去掉提交图文字灰边</span><span class="ghash">b81e904</span></div>
+          <div class="gline"></div>
+          <div class="grow"><span class="gnode" style="background:#DFA64A"></span><span class="gsubject">docs: 桌面端专用说明</span><span class="ghash">9c44a10</span></div>
+        </div>
+      </div>
+      <div class="mock-caption">有更新：横幅抢眼，但永久占一行</div>
+    </div>
+    <div class="mock">
+      <div class="dshframe">
+        <div class="statusbar">
+          <span class="proj">dsh-git-tree</span>
+          <span class="sep">·</span>
+          <span class="branch"><i class="head-dot"></i>main</span>
+          <span class="sp"></span>
+          <button type="button" class="icb" aria-label="检查更新">↑</button>
+          <button type="button" class="icb" aria-label="搜索">⌕</button>
+          <button type="button" class="icb" aria-label="刷新">↻</button>
+        </div>
+        <div class="graph">
+          <div class="grow"><span class="gnode gnode-head"></span><span class="gsubject">feat: 更新入口与手动检查</span><span class="ghash">3f2a1c7</span></div>
+          <div class="gline"></div>
+          <div class="grow"><span class="gnode" style="background:#7BA3F5"></span><span class="gsubject">fix: 去掉提交图文字灰边</span><span class="ghash">b81e904</span></div>
+          <div class="gline"></div>
+          <div class="grow"><span class="gnode" style="background:#DFA64A"></span><span class="gsubject">docs: 桌面端专用说明</span><span class="ghash">9c44a10</span></div>
+        </div>
+        <div class="mock-note">无更新：只剩一个没有含义的箭头，用户未必知道它可以查更新。</div>
+      </div>
+      <div class="mock-caption">无更新：入口存在，但不够显眼</div>
+    </div>
+  </div>
+  <p>方向 C（只加一个「检查更新」图标 + toast）也能满足「主动发现」，但结果只闪一下，用户来不及看清版本号，也没地方再次确认。仅在你想把改动压到最小时才选它。</p>
+</section>
+
+<section>
+  <h2>七、判定规则与接口</h2>
+  <p>和 dsh-context-optimize 共用主要的判定口径，但把「不提示」改成「提示并说明原因」——入口常驻，不会把用户带进死路。每个状态底部都保留「检查更新」。</p>
+  <div class="tablebox tight-first">
+    <table>
+      <thead><tr><th>情况</th><th>浮层显示</th><th>主操作</th></tr></thead>
+      <tbody>
+        <tr><td><span class="dot g"></span>npm 安装 + 有更高正式版</td><td>新版本 vX</td><td>去更新（跳插件页）</td></tr>
+        <tr><td><span class="dot g"></span>npm 安装 + 已是最新</td><td>已是最新版本</td><td>仅「检查更新」</td></tr>
+        <tr><td><span class="dot a"></span>Git 安装 + 锁定 40 位提交</td><td>Git 安装（已锁定提交）</td><td>打开插件页（更新在「发现」页）</td></tr>
+        <tr><td><span class="dot a"></span>Git 安装 + 未锁定提交</td><td>Git 安装，不支持快捷更新</td><td>打开插件页 / 打开 npm</td></tr>
+        <tr><td><span class="dot a"></span>本地目录安装（<code>link:</code> / <code>file:</code>）</td><td>本地目录安装</td><td>打开插件页</td></tr>
+        <tr><td><span class="dot r"></span>网络失败 / 超时 / 坏 JSON</td><td>检查更新失败 + 原因</td><td>检查更新（重试）</td></tr>
+        <tr><td><span class="dot r"></span>读不到 profile 或安装来源未知</td><td>无法判断安装方式</td><td>检查更新 / 打开 npm</td></tr>
+        <tr><td><span class="dot r"></span>老 DSH 没有 pluginNavigation</td><td>仍显示新版本</td><td>打开 npm 页兜底</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>接口仍是 <code>GET /git-tree/update/status</code>，载荷扩成：</p>
+  <div class="card">
+    <p><code>{ ok, current, latest, newer, installSource, canUpdate, checkedAt, checkError }</code></p>
+    <p class="dim"><code>newer</code> 保持原义（registry 版本更高），不破坏现有契约；新增 <code>installSource</code>（<code>registry | git | local | unknown</code>）、<code>canUpdate</code>（只有 <code>registry</code> 安装且 <code>newer</code> 才为 true）、<code>checkedAt</code>（上次检查时间戳）。<code>?refresh=1</code> 跳过读缓存但仍写缓存。非 GET 仍返回 405；认证沿用现有 <code>admitRequest</code>，未认证请求仍是 401/403。</p>
+  </div>
+  <p class="dim">安装来源判定读 profile 的 <code>package.json</code>（dependencies / devDependencies / optionalDependencies 三处都看），和 dsh-context-optimize 的实现一致；读不到时按 <code>unknown</code> 处理，只有手动检查能给出「无法判断安装方式」的说明，不会误报可更新。</p>
+  <p class="dim">版本资格只做能低成本核实的部分：<code>dist-tags.latest</code>、正式版、声明 <code>dsh.bundle</code>、未被 <code>deprecated</code>。与当前 DSH 的 <code>engines.dsh</code> / peer 兼容性交给插件页最终把关——本包 0.7.2 这两项都为空，等以后声明了再补，属于已知残留风险。</p>
+  <p class="dim">和参考实现有一处不同：Git / 本地目录安装也会查一次 npm（只在你点开浮层时告诉你「有新版本，但当前装法不支持应用内更新」），但胶囊不会染色、不主动打扰。原因是你现在就是 GitHub 安装，完全不查等于连「该换 npm 了」都没人提醒。</p>
+</section>
+
+<section>
+  <h2>八、项目结构变更</h2>
+  <p>以下以 <code>origin/main</code> 的 <strong>0.7.2</strong> 为基线（本地 checkout 还停在 0.7.0，实施前先快进）。改动集中在更新判定、宿主路由和客户端面板三处；git 图布局、解析器、认证逻辑、快捷键和插件页展示资源都不动。</p>
+  <div class="tree">
+    <div class="tree-legend">
+      <span><b class="add">+</b> 新增</span>
+      <span><b class="mod">~</b> 修改</span>
+      <span><b class="del">−</b> 删除</span>
+      <span><b class="keep">·</b> 不变</span>
+    </div>
+    <div class="tree-body">
+      <div class="tree-row"><span class="tree-path">lib/</span></div>
+      <div class="tree-row"><span class="tree-path">├─ <span class="mod">~ update.js</span></span><span class="tree-note">修改：安装源判定、双源查询、缓存</span></div>
+      <div class="tree-row"><span class="tree-path">├─ <span class="mod">~ index.js</span></span><span class="tree-note">修改：懒检查、refresh 参数、profileContext</span></div>
+      <div class="tree-row"><span class="tree-path">├─ <span class="mod">~ client.js</span></span><span class="tree-note">修改：版本胶囊、更新浮层、跳转与兜底</span></div>
+      <div class="tree-row"><span class="tree-path">└─ git.js / parse.js</span><span class="tree-note keep">· 不变</span></div>
+      <div class="tree-row"><span class="tree-path">test/</span></div>
+      <div class="tree-row"><span class="tree-path">├─ <span class="mod">~ update.test.js</span></span><span class="tree-note">修改：判定、缓存、双源；删除横幅用例</span></div>
+      <div class="tree-row"><span class="tree-path">├─ <span class="mod">~ index.test.js</span></span><span class="tree-note">修改：refresh 与安装源</span></div>
+      <div class="tree-row"><span class="tree-path">└─ <span class="add">+ update-ui.test.js</span></span><span class="tree-note">新增：胶囊/浮层纯函数</span></div>
+      <div class="tree-row"><span class="tree-path">docs/</span></div>
+      <div class="tree-row"><span class="tree-path">├─ <span class="mod">~ api.md / api.en.md</span></span><span class="tree-note">修改：载荷新增字段</span></div>
+      <div class="tree-row"><span class="tree-path">├─ <span class="mod">~ upgrade.md / upgrade.en.md</span></span><span class="tree-note">修改：npm 安装才可一键更新</span></div>
+      <div class="tree-row"><span class="tree-path">└─ decisions/</span></div>
+      <div class="tree-row"><span class="tree-path">   └─ <span class="add">+ 2026-11-18-update-entry.md</span></span><span class="tree-note">新增：为什么只领路不装包</span></div>
+      <div class="tree-row"><span class="tree-path"><span class="mod">~ package.json</span></span><span class="tree-note">修改：版本号 0.7.3</span></div>
+      <div class="tree-row"><span class="tree-path"><span class="mod">~ README.md / README.en.md</span></span><span class="tree-note">修改：「新版本提示」改为主动检查</span></div>
+      <div class="tree-row"><span class="tree-path"><span class="mod">~ CHANGELOG.md</span></span><span class="tree-note">修改：补 0.7.3 版本脉络</span></div>
+    </div>
+  </div>
+  <div class="tablebox nowrap-2">
+    <table>
+      <thead><tr><th>路径</th><th>变化</th><th>职责与理由</th></tr></thead>
+      <tbody>
+        <tr><td><code>lib/update.js</code></td><td><span class="dot a"></span>修改</td><td>把「问 registry」升级为「判来源 + 双源 + 缓存」，纯函数为主，便于单测</td></tr>
+        <tr><td><code>lib/index.js</code></td><td><span class="dot a"></span>修改</td><td>启动检查改为首次请求触发；加 <code>refresh</code> 参数；<code>admitRequest</code> 与 <code>inject</code> 保持原样</td></tr>
+        <tr><td><code>lib/client.js</code></td><td><span class="dot a"></span>修改</td><td>唯一的面板入口文件（bundle 形态），胶囊、浮层与状态机都写在这里；中英文案成对</td></tr>
+        <tr><td><code>test/update.test.js</code></td><td><span class="dot a"></span>修改</td><td>补来源判定、缓存与双源；删掉 <code>showUpdateBanner</code> 的四个旧用例</td></tr>
+        <tr><td><code>test/update-ui.test.js</code></td><td><span class="dot g"></span>新增</td><td>把「状态 → 文案 / 动作」抽成纯函数，避免用假 React 测交互</td></tr>
+        <tr><td><code>docs/api.md</code> / <code>docs/api.en.md</code></td><td><span class="dot a"></span>修改</td><td>同步载荷新字段；<code>newer</code> 保留，避免破坏契约</td></tr>
+        <tr><td><code>README.md</code> / <code>README.en.md</code> / <code>CHANGELOG.md</code></td><td><span class="dot a"></span>修改</td><td>把「启动时静默查、横幅只读」改成主动检查；修正「桌面端没有更新按钮」的旧说法（npm 安装有）</td></tr>
+        <tr><td><code>docs/upgrade.md</code> / <code>docs/upgrade.en.md</code></td><td><span class="dot a"></span>修改</td><td>写清 GitHub 与 link 安装如何切到 npm 才能用一键更新</td></tr>
+        <tr><td><code>docs/decisions/2026-11-18-update-entry.md</code></td><td><span class="dot g"></span>新增</td><td>记录「只领路、不自装」的边界，防止以后又加回 pnpm 自更新</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="dim">不变的范围：<code>lib/git.js</code>、<code>lib/parse.js</code>、右侧栏 tab 注册、快捷键、<code>locale/</code> 与 <code>icon.svg</code>、发布工作流。</p>
+</section>
+
+<section>
+  <h2>九、实施步骤</h2>
+  <ol class="steps">
+    <li><strong>先同步基线</strong>：本地 checkout 落后 <code>origin/main</code> 4 个提交（0.7.0 → 0.7.2，含宿主认证与工作区限制）。先快进到 <code>origin/main</code> 再动手；这算一次合并，需要你点头。</li>
+    <li><strong>宿主判定先行</strong>：重写 <code>lib/update.js</code> 的版本解析与来源判定，先把「什么情况下算可更新」用单测钉死，再改路由。</li>
+    <li><strong>路由改成按需 + 可刷新</strong>：状态对象带 TTL 与并发去重；<code>refresh=1</code> 强制重查；无 <code>profileContext</code> 时安全降级。</li>
+    <li><strong>客户端胶囊与浮层</strong>：先做纯函数（状态到文案/动作），再接入面板；跳转用 <code>ctx.get('pluginNavigation')?.openBundle(name)</code>，失败退回 npm 页。</li>
+    <li><strong>删旧横幅与清理</strong>：去掉 <code>showUpdateBanner</code> 与相关文案，防止两套提示并存。</li>
+    <li><strong>测试与文档</strong>：<code>node --test</code> 全绿；补决策记录；README 的「新版本提示」章节改写。</li>
+    <li><strong>验证分两层</strong>：单测覆盖判定、缓存与状态机；真实面板先验证「本机 GitHub 安装」这条分支（胶囊、检查更新、打开插件页）。npm 一键更新分支要同时满足「registry 安装 + 有新版本」，预发布前走不通：可以临时把新 <code>lib</code> 覆盖到已从 npm 安装的 profile 副本、并把版本降到 0.7.1 来演示（需要你许可改 profile，且不点最终确认）；或者等发布 0.7.3 后再发 0.7.4 做真实验证（生产操作，另行批准）。</li>
+  </ol>
+  <div class="plain">
+    <div class="plain-label">最后一步为什么绕不开 · 安装来源决定按钮存不存在</div>
+    <p>Git 安装也分两种：锁定到 40 位提交的，更新入口在插件页的「发现」标签页；用分支 / 标签装的，插件页连「版本」区都没有。本机是后者（<code>github:kulebbb/dsh-git-tree</code> 没锁提交），所以完整的一键更新链路要先换成 npm 安装才走得通——这是一次性的手动动作，不是代码能绕过的。</p>
+  </div>
+</section>
+
+<section>
+  <h2>十、风险与不做的事</h2>
+  <div class="tablebox tight-first">
+    <table>
+      <thead><tr><th>项</th><th>处理</th></tr></thead>
+      <tbody>
+        <tr><td><span class="dot r"></span>老 DSH 没有 <code>pluginNavigation</code></td><td>不硬依赖：拿不到就新标签打开 npm 页；胶囊照常显示</td></tr>
+        <tr><td><span class="dot r"></span>registry 在国内不可达</td><td>第一源 npmjs、第二源 npmmirror；两个都失败才显示「检查失败」</td></tr>
+        <tr><td><span class="dot a"></span>浮层被状态条裁切</td><td>和现有 tooltip 一样用 fixed 定位，按视口边缘收拢；状态条不改 overflow</td></tr>
+        <tr><td><span class="dot a"></span>反复点「检查更新」打爆 registry</td><td>刷新也写缓存（只跳过读）；并发共享同一请求；客户端再加 10 秒最小间隔</td></tr>
+        <tr><td><span class="dot a"></span>GitHub 安装用户看到「不支持更新」以为是故障</td><td>文案明确写「重新安装 npm 版本后即可一键更新」，并给 npm 链接</td></tr>
+        <tr><td><span class="dot a"></span>新增参数削弱认证</td><td><code>refresh</code> 只影响缓存，路由仍先过 <code>connection.admit()</code>；不新增免认证路径</td></tr>
+        <tr><td><span class="dot a"></span>窄侧栏（&lt; 360px）挤爆状态条</td><td>胶囊 <code>flex:none</code> + 省略号；窄时只保留版本号，不隐藏检查入口；现有 pill 的收缩行为不变</td></tr>
+        <tr><td><span class="dot a"></span>浮层被 tooltip 或面板容器盖住</td><td>沿用 tooltip 的 fixed 定位，<code>z-index</code> 取 1002（比 tooltip 高 1）；不塞进 <code>overflow:hidden</code> 的状态条</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>明确不做：面板内自绘更新进度、失败回滚、忽略此版本、轮询、侧边栏红点。前两项 DSH 插件页已经做得更稳，后三项会让插件和平台两套状态打架。</p>
+</section>
+
+<section>
+  <h2>十一、需要你拍板</h2>
+  <div class="pending">
+    <h3>1. 快捷更新的落点：跳插件页，还是面板里真装？</h3>
+    <p>推荐<strong>跳插件页</strong>：和 dsh-context-optimize 一致，零安装风险，DSH 负责换包与回滚。若你坚持在面板里装，需要调用 <code>pluginManager.updateBundle</code> 并自绘进度与失败三态，约三百行，且第三方插件自更新时请求可能因包被卸载而中断——我不推荐。</p>
+  </div>
+  <div class="pending">
+    <h3>2. 本机安装来源：要不要从 GitHub 换成 npm？</h3>
+    <p>不换的话，新功能能看到、能查、但「去更新」落到插件页没有更新按钮，只能重装。换成 npm 后这条链路才完整。这一步会改桌面 profile（<code>~/.dsh/profiles/desktop</code>），需要你明确许可，我只在你同意后做。</p>
+  </div>
+  <div class="pending">
+    <h3>3. 视觉方向：A（胶囊 + 浮层）还是 B（横幅）？</h3>
+    <p>推荐 A。确认方向后我再开始改代码；如果 A 的某处文案或交互你想调整，直接说，我改原型再实施。</p>
+  </div>
+</section>
+
+<footer>当前状态：已按方向 A 在 feat/update-entry 分支实施，版本 0.7.3 · 本机仍为 GitHub 安装，一键更新链路待发布后验证</footer>
+
+</div>
+
+<script>
+(function () {
+  var frame = document.getElementById('frameA');
+  if (!frame) return;
+  var chip = document.getElementById('chipA');
+  var pop = document.getElementById('popA');
+  var popCur = document.getElementById('popCur');
+  var popDot = document.getElementById('popDot');
+  var popState = document.getElementById('popState');
+  var popNote = document.getElementById('popNote');
+  var popActions = document.getElementById('popActions');
+  var popFoot = document.getElementById('popFoot');
+
+  var states = {
+    idle: {
+      chip: 'v0.7.0',
+      chipUp: false,
+      cur: 'v0.7.0',
+      dot: '#4CC08A',
+      state: '已是最新版本',
+      note: '当前从 npm 安装。更新由 DSH 插件页完成，失败会自动装回旧版本。',
+      actions: [],
+      foot: '上次检查 12:30'
+    },
+    update: {
+      chip: '↑ v0.7.2',
+      chipUp: true,
+      cur: 'v0.7.0',
+      dot: '#7BA3F5',
+      state: '新版本 v0.7.2',
+      note: '更新在 DSH 插件页完成；失败会自动装回 v0.7.0。能热更新就直接生效，否则按 DSH 提示重启一次。',
+      actions: [{ label: '去更新', kind: 'primary' }, { label: '打开 npm', kind: '' }],
+      foot: '上次检查 12:30'
+    },
+    git: {
+      chip: 'v0.7.0',
+      chipUp: false,
+      cur: 'v0.7.0',
+      dot: '#DFA64A',
+      state: 'Git 安装，不支持快捷更新',
+      note: '插件页不会给 Git 安装显示「版本」区。已锁定提交的安装可在「发现」标签页更新；未锁定的请改用 npm。',
+      actions: [{ label: '打开插件页', kind: 'primary' }, { label: '打开 npm', kind: '' }],
+      foot: '上次检查 12:30 · 来源：GitHub'
+    },
+    local: {
+      chip: 'v0.7.0',
+      chipUp: false,
+      cur: 'v0.7.0',
+      dot: '#DFA64A',
+      state: '本地目录安装',
+      note: '当前是 link 安装（开发态），没有安装源版本，无法应用内更新。要让面板参与更新，需改用 npm 安装。',
+      actions: [{ label: '打开插件页', kind: 'primary' }],
+      foot: '上次检查 12:30 · 来源：本地目录'
+    },
+    error: {
+      chip: 'v0.7.0',
+      chipUp: false,
+      cur: 'v0.7.0',
+      dot: '#E58579',
+      state: '检查更新失败',
+      note: '检查超时，官方源与镜像都没有返回。离线不影响面板其他功能。',
+      actions: [],
+      foot: '上次检查 12:30'
+    }
+  };
+
+  var current = 'idle';
+  var checking = false;
+
+  function setOpen(open) {
+    pop.hidden = !open;
+    chip.setAttribute('aria-expanded', String(open));
+  }
+
+  function render(key) {
+    var s = states[key];
+    chip.textContent = s.chip;
+    chip.className = 'chip' + (s.chipUp ? ' up' : '');
+    chip.title = '检查更新（当前 ' + s.cur + '）';
+    chip.setAttribute('aria-label', '检查更新（当前 ' + s.cur + '）');
+    popCur.textContent = s.cur;
+    popDot.style.background = s.dot;
+    popState.textContent = s.state;
+    popNote.textContent = s.note;
+    popFoot.textContent = s.foot;
+    popActions.innerHTML = '';
+    s.actions.forEach(function (a) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn' + (a.kind === 'primary' ? ' primary' : ' ghost');
+      b.textContent = a.label;
+      popActions.appendChild(b);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (btn) {
+      btn.setAttribute('aria-pressed', String(btn.getAttribute('data-state') === key));
+    });
+  }
+
+  render(current);
+
+  Array.prototype.forEach.call(document.querySelectorAll('.seg button'), function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      current = btn.getAttribute('data-state');
+      render(current);
+      setOpen(true);
+    });
+  });
+
+  chip.addEventListener('click', function (e) {
+    e.stopPropagation();
+    setOpen(pop.hidden);
+  });
+
+  checkBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (checking) return;
+    checking = true;
+    checkBtn.disabled = true;
+    checkBtn.textContent = '正在检查…';
+    popFoot.textContent = '正在检查…';
+    setTimeout(function () {
+      checking = false;
+      checkBtn.disabled = false;
+      checkBtn.textContent = '↻ 检查更新';
+      popFoot.textContent = '上次检查 刚刚';
+    }, 700);
+  });
+
+  document.addEventListener('click', function () { setOpen(false); });
+  pop.addEventListener('click', function (e) { e.stopPropagation(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !pop.hidden) {
+      setOpen(false);
+      chip.focus();
+    }
+  });
+})();
+</script>
+</body>
+</html>

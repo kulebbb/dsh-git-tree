@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { apply, GRAPH_ROUTE, UPDATE_STATUS_ROUTE } from "../lib/index.js";
@@ -28,8 +28,8 @@ function responseOf(res) {
   return body ? JSON.parse(body) : null;
 }
 
-/** Mount the plugin with a stubbed registry fetch and return the route handlers. */
-function makeContext({ fetchImpl, admit, workspaces, sessions } = {}) {
+/** Mount the plugin with stubbed registry/profile facts and return the route handlers. */
+function makeContext({ fetchImpl, admit, workspaces, sessions, profileDir, profileContext, readSpec, now } = {}) {
   const handlers = {};
   const ctx = {
     webServer: {
@@ -45,10 +45,15 @@ function makeContext({ fetchImpl, admit, workspaces, sessions } = {}) {
     },
     get(name) {
       if (name === "sessions") return sessions;
+      if (name === "profileContext") return profileContext ?? (profileDir === undefined ? undefined : { dir: profileDir });
       return undefined;
     }
   };
-  apply(ctx, {}, { fetchImpl });
+  apply(ctx, {}, {
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+    ...(readSpec === undefined ? {} : { readSpec }),
+    ...(now === undefined ? {} : { now })
+  });
   return { handlers };
 }
 
@@ -68,23 +73,13 @@ function workspaceContext(root, extra = {}) {
   });
 }
 
-const okFetch = async () => ({ ok: true, json: async () => ({ version: "9.9.9" }) });
+const okFetch = async () => ({ ok: true, json: async () => ({ version: "9.9.9", dsh: { bundle: { patch: "./cordis.patch.yml" } } }) });
 
-async function statusOf(handlers) {
+/** One status request; the host checks lazily and answers after the check. */
+async function statusOf(handlers, search = "") {
   const res = fakeRes();
-  await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "GET" }, res);
+  await handlers[UPDATE_STATUS_ROUTE]({ url: `${UPDATE_STATUS_ROUTE}${search}`, method: "GET" }, res);
   return responseOf(res);
-}
-
-/** Poll the status route until the startup check has settled (success or failure). */
-async function waitForSettled(handlers) {
-  for (let attempt = 0; attempt < 100; attempt++) {
-    const body = await statusOf(handlers);
-    if (typeof body?.current === "string" && body.current !== "0.0.0" && body.latest != null) return body;
-    if (body?.checkError != null) return body;
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error("update status never settled");
 }
 
 test("apply: registers the graph and status routes only", () => {
@@ -95,32 +90,125 @@ test("apply: registers the graph and status routes only", () => {
   assert.equal(handlers["/git-tree/update"], undefined);
 });
 
-test("GET status: returns derived payload after the startup check settles", async () => {
-  const { handlers } = makeContext({ fetchImpl: okFetch });
-  const body = await waitForSettled(handlers);
+test("GET status: runs the registry check on demand", async () => {
+  const { handlers } = makeContext({ fetchImpl: okFetch, readSpec: async () => "^0.7.0" });
+  const body = await statusOf(handlers);
   assert.equal(body.ok, true);
   assert.equal(body.latest, "9.9.9");
   assert.equal(body.checkError, null);
   assert.equal(body.current, manifest.version);
   assert.equal(body.newer, true);
+  assert.equal(body.installSource, "registry");
+  assert.equal(body.canUpdate, true);
+  assert.equal(typeof body.checkedAt, "number");
 });
 
 test("GET status: a failed registry check keeps latest null and reports the error", async () => {
   const failingFetch = async () => { throw new Error("ECONNREFUSED"); };
-  const { handlers } = makeContext({ fetchImpl: failingFetch });
-  const body = await waitForSettled(handlers);
+  const { handlers } = makeContext({ fetchImpl: failingFetch, readSpec: async () => "^0.7.0" });
+  const body = await statusOf(handlers);
   assert.equal(body.ok, true);
   assert.equal(body.latest, null);
   assert.equal(body.newer, false);
-  assert.match(body.checkError, /ECONNREFUSED/);
+  assert.equal(body.canUpdate, false);
+  assert.equal(body.checkError, "registry unreachable");
 });
 
-test("GET status: 405 for non-GET methods", async () => {
-  const { handlers } = makeContext({ fetchImpl: okFetch });
+test("apply: the registry is not queried until the status route runs", async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({ version: "9.9.9", dsh: { bundle: {} } }) };
+  };
+  const { handlers } = makeContext({ fetchImpl, readSpec: async () => "^0.7.0" });
+  assert.equal(calls, 0, "mounting the plugin must not hit the network");
+  await statusOf(handlers);
+  assert.equal(calls, 1);
+});
+
+test("GET status: profileContext is resolved lazily, not at apply time", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gt-index-"));
+  try {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ dependencies: { "@kulebbb/dsh-git-tree": "github:kulebbb/dsh-git-tree" } }));
+    let profile;
+    const handlers = {};
+    const ctx = {
+      webServer: { register: ({ path, handler }) => { handlers[path] = handler; return () => {}; } },
+      logger: { warn: () => {}, debug: () => {} },
+      effect: (fn) => { const cleanup = fn(); if (typeof cleanup === "function") cleanup(); },
+      connection: { admit: () => ({ peer: {} }) },
+      workspaceRegistry: { list: () => [] },
+      get(name) { return name === "profileContext" ? profile : undefined; }
+    };
+    apply(ctx, {}, { fetchImpl: okFetch });
+    profile = { dir };
+    const body = await statusOf(handlers);
+    assert.equal(body.installSource, "git");
+    assert.equal(body.canUpdate, false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("GET status: a failed forced check keeps the last good result", async () => {
+  let offline = false;
+  const fetchImpl = async () => {
+    if (offline) throw new Error("offline");
+    return { ok: true, json: async () => ({ version: "9.9.9", dsh: { bundle: {} } }) };
+  };
+  const { handlers } = makeContext({ fetchImpl, readSpec: async () => "^0.7.0" });
+  const first = await statusOf(handlers);
+  assert.equal(first.latest, "9.9.9");
+  offline = true;
+  const forced = await statusOf(handlers, "?refresh=1");
+  assert.equal(forced.latest, "9.9.9");
+  assert.equal(forced.stale, true);
+  assert.equal(forced.checkErrorCode, "registry");
+  const reopened = await statusOf(handlers);
+  assert.equal(reopened.latest, "9.9.9");
+  assert.equal(reopened.stale, false);
+});
+
+test("GET status: profileContext decides the install source", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gt-index-"));
+  try {
+    writeFileSync(join(dir, "package.json"), JSON.stringify({ dependencies: { "@kulebbb/dsh-git-tree": "github:kulebbb/dsh-git-tree" } }));
+    const { handlers } = makeContext({ fetchImpl: okFetch, profileContext: { dir } });
+    const body = await statusOf(handlers);
+    assert.equal(body.installSource, "git");
+    assert.equal(body.newer, true);
+    assert.equal(body.canUpdate, false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("GET status: refresh=1 bypasses the cache and writes the new result", async () => {
+  let version = "9.9.9";
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, json: async () => ({ version, dsh: { bundle: {} } }) };
+  };
+  const { handlers } = makeContext({ fetchImpl, readSpec: async () => "^0.7.0" });
+  assert.equal((await statusOf(handlers)).latest, "9.9.9");
+  version = "9.9.10";
+  assert.equal((await statusOf(handlers)).latest, "9.9.9");
+  assert.equal(calls, 1);
+  assert.equal((await statusOf(handlers, "?refresh=1")).latest, "9.9.10");
+  assert.equal(calls, 2);
+  assert.equal((await statusOf(handlers)).latest, "9.9.10", "the forced result is cached");
+  assert.equal(calls, 2);
+});
+
+test("GET status: non-GET methods are rejected before any registry request", async () => {
+  let calls = 0;
+  const fetchImpl = async () => { calls += 1; return { ok: true, json: async () => ({ version: "9.9.9" }) }; };
+  const { handlers } = makeContext({ fetchImpl, readSpec: async () => "^0.7.0" });
   const res = fakeRes();
   await handlers[UPDATE_STATUS_ROUTE]({ url: UPDATE_STATUS_ROUTE, method: "POST" }, res);
   assert.equal(res.calls[0][1], 405);
-  assert.equal(responseOf(res).error.code, "method-not-allowed");
+  assert.equal(calls, 0);
 });
 
 test("routes: host admission rejection is returned before the handler runs", async () => {
